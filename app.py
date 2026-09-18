@@ -9,7 +9,13 @@ from dotenv import load_dotenv
 # Load environment variables from .env file (if present)
 load_dotenv()
 
-app = Flask(__name__)
+BASE_DIR = os.path.abspath(os.path.dirname(__file__))
+
+app = Flask(
+    __name__,
+    template_folder=os.path.join(BASE_DIR, "templates"),
+    static_folder=os.path.join(BASE_DIR, "static"),
+)
 
 # -------------------------------------------------------------------------
 # Flask secret key — required for session management
