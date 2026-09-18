@@ -1,0 +1,494 @@
+/* =========================================================================
+   Campus Hostel Companion — Global Stylesheet
+   Color palette: 3 colors only
+     --primary  : #1a7f8e  (teal-blue)
+     --bg       : #f4f7f9  (light gray-white)
+     --text      : #1e2a35  (dark navy)
+   ========================================================================= */
+
+/* -------------------------------------------------------------------------
+   0. Google Font Import
+   ------------------------------------------------------------------------- */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+
+/* -------------------------------------------------------------------------
+   1. CSS Variables (Design Tokens)
+   ------------------------------------------------------------------------- */
+:root {
+  --primary:        #1a7f8e;
+  --primary-dark:   #145f6b;
+  --primary-light:  #e8f5f7;
+  --bg:             #f4f7f9;
+  --bg-white:       #ffffff;
+  --text:           #1e2a35;
+  --text-muted:     #5a6a78;
+  --border:         #d6e0e8;
+  --radius:         10px;
+  --shadow:         0 2px 12px rgba(26,127,142,.10);
+  --shadow-lg:      0 6px 28px rgba(26,127,142,.15);
+  --transition:     0.2s ease;
+  --font:           'Inter', sans-serif;
+}
+
+/* -------------------------------------------------------------------------
+   2. Reset & Base
+   ------------------------------------------------------------------------- */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+html { font-size: 16px; scroll-behavior: smooth; }
+
+body {
+  font-family: var(--font);
+  background: var(--bg);
+  color: var(--text);
+  line-height: 1.6;
+  min-height: 100vh;
+}
+
+a { color: var(--primary); text-decoration: none; }
+a:hover { text-decoration: underline; }
+
+img { max-width: 100%; display: block; }
+
+ul { list-style: none; }
+
+/* -------------------------------------------------------------------------
+   3. Typography
+   ------------------------------------------------------------------------- */
+h1, h2, h3, h4 { font-weight: 700; line-height: 1.25; color: var(--text); }
+h1 { font-size: clamp(1.8rem, 4vw, 2.8rem); }
+h2 { font-size: clamp(1.3rem, 3vw, 1.9rem); }
+h3 { font-size: 1.1rem; }
+p  { color: var(--text-muted); }
+
+/* -------------------------------------------------------------------------
+   4. Layout Utilities
+   ------------------------------------------------------------------------- */
+.container {
+  width: 100%;
+  max-width: 1060px;
+  margin-inline: auto;
+  padding-inline: 1.25rem;
+}
+
+.page-wrapper {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+}
+
+main { flex: 1; padding-block: 2rem; }
+
+/* -------------------------------------------------------------------------
+   5. Navigation Bar
+   ------------------------------------------------------------------------- */
+.navbar {
+  background: var(--bg-white);
+  border-bottom: 1px solid var(--border);
+  box-shadow: var(--shadow);
+  position: sticky;
+  top: 0;
+  z-index: 100;
+}
+
+.navbar__inner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 60px;
+}
+
+.navbar__brand {
+  font-size: 1.15rem;
+  font-weight: 700;
+  color: var(--primary);
+  display: flex;
+  align-items: center;
+  gap: .5rem;
+}
+
+.navbar__brand .brand-icon { font-size: 1.4rem; }
+
+.navbar__links {
+  display: flex;
+  align-items: center;
+  gap: .25rem;
+}
+
+.navbar__links a {
+  padding: .45rem .85rem;
+  border-radius: var(--radius);
+  font-size: .9rem;
+  font-weight: 500;
+  color: var(--text-muted);
+  transition: background var(--transition), color var(--transition);
+}
+
+.navbar__links a:hover,
+.navbar__links a.active {
+  background: var(--primary-light);
+  color: var(--primary);
+  text-decoration: none;
+}
+
+.navbar__links a.btn-logout {
+  color: var(--primary);
+  border: 1.5px solid var(--primary);
+  margin-left: .5rem;
+}
+
+.navbar__links a.btn-logout:hover {
+  background: var(--primary);
+  color: #fff;
+}
+
+/* -------------------------------------------------------------------------
+   6. Buttons
+   ------------------------------------------------------------------------- */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: .4rem;
+  padding: .65rem 1.4rem;
+  border-radius: var(--radius);
+  font-family: var(--font);
+  font-size: .95rem;
+  font-weight: 600;
+  cursor: pointer;
+  border: none;
+  transition: background var(--transition), box-shadow var(--transition), transform var(--transition);
+}
+
+.btn:active { transform: scale(0.97); }
+
+.btn-primary {
+  background: var(--primary);
+  color: #fff;
+  box-shadow: 0 3px 10px rgba(26,127,142,.25);
+}
+
+.btn-primary:hover {
+  background: var(--primary-dark);
+  box-shadow: var(--shadow-lg);
+  text-decoration: none;
+  color: #fff;
+}
+
+.btn-outline {
+  background: transparent;
+  color: var(--primary);
+  border: 2px solid var(--primary);
+}
+
+.btn-outline:hover {
+  background: var(--primary-light);
+  text-decoration: none;
+}
+
+.btn-sm { padding: .45rem 1rem; font-size: .875rem; }
+.btn-full { width: 100%; }
+
+/* -------------------------------------------------------------------------
+   7. Cards
+   ------------------------------------------------------------------------- */
+.card {
+  background: var(--bg-white);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  padding: 1.5rem;
+}
+
+.card-grid {
+  display: grid;
+  gap: 1.25rem;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+}
+
+/* -------------------------------------------------------------------------
+   8. Forms
+   ------------------------------------------------------------------------- */
+.form-group { margin-bottom: 1.1rem; }
+
+.form-group label {
+  display: block;
+  font-size: .875rem;
+  font-weight: 600;
+  color: var(--text);
+  margin-bottom: .4rem;
+}
+
+.form-control {
+  width: 100%;
+  padding: .65rem .9rem;
+  border: 1.5px solid var(--border);
+  border-radius: var(--radius);
+  font-family: var(--font);
+  font-size: .95rem;
+  color: var(--text);
+  background: var(--bg-white);
+  transition: border-color var(--transition), box-shadow var(--transition);
+}
+
+.form-control:focus {
+  outline: none;
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px rgba(26,127,142,.15);
+}
+
+textarea.form-control { resize: vertical; min-height: 110px; }
+
+select.form-control { appearance: none; cursor: pointer; }
+
+/* -------------------------------------------------------------------------
+   9. Flash / Alert Messages
+   ------------------------------------------------------------------------- */
+.alerts { margin-bottom: 1.2rem; }
+
+.alert {
+  padding: .8rem 1.1rem;
+  border-radius: var(--radius);
+  font-size: .9rem;
+  font-weight: 500;
+  margin-bottom: .6rem;
+  display: flex;
+  align-items: center;
+  gap: .5rem;
+}
+
+.alert-info    { background: #e8f5f7; color: #145f6b; border-left: 4px solid var(--primary); }
+.alert-success { background: #e8f7f0; color: #1a6b42; border-left: 4px solid #27ae60; }
+.alert-warning { background: #fef9ec; color: #7a5c0c; border-left: 4px solid #f0b429; }
+.alert-error   { background: #fdecea; color: #7a1c1c; border-left: 4px solid #e74c3c; }
+
+/* -------------------------------------------------------------------------
+   10. Status Badges
+   ------------------------------------------------------------------------- */
+.badge {
+  display: inline-block;
+  padding: .2rem .65rem;
+  border-radius: 99px;
+  font-size: .78rem;
+  font-weight: 600;
+  letter-spacing: .01em;
+}
+
+.badge-open       { background: #fef9ec; color: #7a5c0c; }
+.badge-inprogress { background: #e8f5f7; color: #145f6b; }
+.badge-resolved   { background: #e8f7f0; color: #1a6b42; }
+
+/* -------------------------------------------------------------------------
+   11. Section Headers
+   ------------------------------------------------------------------------- */
+.section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 1.5rem;
+  flex-wrap: wrap;
+  gap: .75rem;
+}
+
+.section-header h2 { margin: 0; }
+
+/* -------------------------------------------------------------------------
+   12. Empty State
+   ------------------------------------------------------------------------- */
+.empty-state {
+  text-align: center;
+  padding: 3.5rem 1rem;
+  color: var(--text-muted);
+}
+
+.empty-state .empty-icon { font-size: 3rem; margin-bottom: 1rem; opacity: .5; }
+.empty-state p { font-size: .95rem; margin-top: .4rem; }
+
+/* -------------------------------------------------------------------------
+   13. Landing Page — Hero
+   ------------------------------------------------------------------------- */
+.hero {
+  text-align: center;
+  padding: 5rem 1rem 3.5rem;
+}
+
+.hero__badge {
+  display: inline-block;
+  background: var(--primary-light);
+  color: var(--primary);
+  font-size: .8rem;
+  font-weight: 700;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+  padding: .3rem .9rem;
+  border-radius: 99px;
+  margin-bottom: 1.25rem;
+}
+
+.hero h1 { margin-bottom: .75rem; }
+.hero__tagline { font-size: 1.1rem; max-width: 500px; margin-inline: auto; margin-bottom: 2rem; }
+
+.hero__cta { display: flex; gap: 1rem; justify-content: center; flex-wrap: wrap; }
+
+/* -------------------------------------------------------------------------
+   14. Feature Highlights (landing)
+   ------------------------------------------------------------------------- */
+.features {
+  padding-block: 3rem;
+}
+
+.features__grid {
+  display: grid;
+  gap: 1.25rem;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+}
+
+.feature-card {
+  background: var(--bg-white);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 1.6rem 1.4rem;
+  text-align: center;
+  transition: box-shadow var(--transition), transform var(--transition);
+}
+
+.feature-card:hover {
+  box-shadow: var(--shadow-lg);
+  transform: translateY(-3px);
+}
+
+.feature-card .feature-icon { font-size: 2.2rem; margin-bottom: .75rem; }
+.feature-card h3 { font-size: 1rem; margin-bottom: .35rem; }
+.feature-card p  { font-size: .875rem; }
+
+/* -------------------------------------------------------------------------
+   15. Modal (Login / Signup)
+   ------------------------------------------------------------------------- */
+.modal-overlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,.45);
+  z-index: 200;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+}
+
+.modal-overlay.active { display: flex; }
+
+.modal {
+  background: var(--bg-white);
+  border-radius: var(--radius);
+  padding: 2.25rem 2rem;
+  width: 100%;
+  max-width: 420px;
+  box-shadow: var(--shadow-lg);
+  position: relative;
+}
+
+.modal__close {
+  position: absolute;
+  top: 1rem;
+  right: 1rem;
+  background: none;
+  border: none;
+  font-size: 1.4rem;
+  cursor: pointer;
+  color: var(--text-muted);
+  line-height: 1;
+}
+
+.modal__close:hover { color: var(--text); }
+
+.modal h2 { margin-bottom: 1.5rem; font-size: 1.4rem; }
+
+.modal__switch { text-align: center; margin-top: 1.1rem; font-size: .88rem; color: var(--text-muted); }
+.modal__switch a { font-weight: 600; }
+
+/* -------------------------------------------------------------------------
+   16. Mess Menu Grid
+   ------------------------------------------------------------------------- */
+.menu-grid {
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+}
+
+.menu-card {
+  background: var(--bg-white);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+  box-shadow: var(--shadow);
+}
+
+.menu-card__header {
+  background: var(--primary);
+  color: #fff;
+  padding: .65rem 1rem;
+  font-weight: 700;
+  font-size: .9rem;
+  display: flex;
+  align-items: center;
+  gap: .4rem;
+}
+
+.menu-card__body { padding: 1rem; font-size: .9rem; color: var(--text); line-height: 1.5; }
+
+/* -------------------------------------------------------------------------
+   17. Complaint & Announcement Cards
+   ------------------------------------------------------------------------- */
+.complaint-card, .announcement-card {
+  background: var(--bg-white);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 1.25rem 1.4rem;
+  box-shadow: var(--shadow);
+  display: flex;
+  flex-direction: column;
+  gap: .5rem;
+}
+
+.complaint-card__meta, .announcement-card__meta {
+  font-size: .8rem;
+  color: var(--text-muted);
+  display: flex;
+  align-items: center;
+  gap: .75rem;
+  flex-wrap: wrap;
+}
+
+.complaint-card__title, .announcement-card__title {
+  font-weight: 600;
+  font-size: 1rem;
+  color: var(--text);
+}
+
+.complaint-card__desc, .announcement-card__body {
+  font-size: .9rem;
+  color: var(--text-muted);
+}
+
+/* -------------------------------------------------------------------------
+   18. Footer
+   ------------------------------------------------------------------------- */
+.footer {
+  text-align: center;
+  padding: 1.25rem;
+  font-size: .825rem;
+  color: var(--text-muted);
+  border-top: 1px solid var(--border);
+  background: var(--bg-white);
+}
+
+/* -------------------------------------------------------------------------
+   19. Responsive Overrides
+   ------------------------------------------------------------------------- */
+@media (max-width: 640px) {
+  .navbar__links a { padding: .4rem .55rem; font-size: .82rem; }
+  .modal { padding: 1.75rem 1.25rem; }
+  .hero { padding: 3rem 1rem 2.5rem; }
+  .hero__cta { flex-direction: column; align-items: center; }
+  .hero__cta .btn { width: 100%; max-width: 280px; }
+}

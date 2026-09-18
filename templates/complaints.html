@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="description" content="My Complaints — track the status of your hostel complaints." />
+  <title>My Complaints | Campus Hostel Companion</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}" />
+</head>
+<body>
+<div class="page-wrapper">
+
+  <!-- ===== Navbar ===== -->
+  <nav class="navbar">
+    <div class="container navbar__inner">
+      <a href="{{ url_for('dashboard') }}" class="navbar__brand">
+        <span class="brand-icon">🏠</span>
+        Campus Hostel Companion
+      </a>
+      <div class="navbar__links">
+        <a href="{{ url_for('dashboard') }}">🍽️ Menu</a>
+        <a href="{{ url_for('complaints') }}" class="active">📋 Complaints</a>
+        <a href="{{ url_for('announcements') }}">📢 Notices</a>
+        <a href="{{ url_for('logout') }}" class="btn-logout">Log Out</a>
+      </div>
+    </div>
+  </nav>
+
+  <main>
+    <div class="container">
+
+      <!-- Flash messages -->
+      {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+          <div class="alerts">
+            {% for category, message in messages %}
+              <div class="alert alert-{{ category }}">
+                {% if category == 'warning' %}⚠️{% elif category == 'error' %}❌{% elif category == 'success' %}✅{% else %}ℹ️{% endif %}
+                {{ message }}
+              </div>
+            {% endfor %}
+          </div>
+        {% endif %}
+      {% endwith %}
+
+      <!-- Section header -->
+      <div class="section-header">
+        <div>
+          <h1>My Complaints</h1>
+          <p style="margin-top:.25rem;">View the status of all complaints you have raised.</p>
+        </div>
+        <a href="{{ url_for('raise_complaint') }}" class="btn btn-primary btn-sm">+ Raise New</a>
+      </div>
+
+      <!-- ===== Complaints list ===== -->
+      {% if complaints %}
+        <div style="display:flex; flex-direction:column; gap:1rem;">
+          {% for c in complaints %}
+            <div class="complaint-card">
+              <div class="complaint-card__meta">
+                <span>🗂️ {{ c.get('category', 'General') }}</span>
+                <span>📅 {{ c.get('created_at', '') }}</span>
+                <!-- Status badge -->
+                {% set status = c.get('status', 'Open') %}
+                {% if status == 'Open' %}
+                  <span class="badge badge-open">Open</span>
+                {% elif status == 'In Progress' %}
+                  <span class="badge badge-inprogress">In Progress</span>
+                {% elif status == 'Resolved' %}
+                  <span class="badge badge-resolved">Resolved</span>
+                {% else %}
+                  <span class="badge badge-open">{{ status }}</span>
+                {% endif %}
+              </div>
+              <div class="complaint-card__title">{{ c.get('title', '') }}</div>
+              <div class="complaint-card__desc">{{ c.get('description', '') }}</div>
+            </div>
+          {% endfor %}
+        </div>
+
+      {% else %}
+        <div class="empty-state">
+          <div class="empty-icon">📭</div>
+          <h3>No complaints yet</h3>
+          <p>
+            {% if not complaints is defined or complaints|length == 0 %}
+              Connect DynamoDB (<code>campus-hostel-complaints</code>) to load your complaint history,
+              or raise your first complaint.
+            {% endif %}
+          </p>
+          <a href="{{ url_for('raise_complaint') }}" class="btn btn-primary btn-sm" style="margin-top:1.2rem;">
+            + Raise a Complaint
+          </a>
+        </div>
+      {% endif %}
+
+    </div>
+  </main>
+
+  <footer class="footer">
+    <p>© 2026 Campus Hostel Companion</p>
+  </footer>
+
+</div>
+<script src="{{ url_for('static', filename='js/app.js') }}"></script>
+</body>
+</html>

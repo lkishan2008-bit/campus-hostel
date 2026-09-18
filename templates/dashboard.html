@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="description" content="Dashboard — Today's mess menu for hostel students." />
+  <title>Dashboard | Campus Hostel Companion</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}" />
+</head>
+<body>
+<div class="page-wrapper">
+
+  <!-- ===== Navbar ===== -->
+  <nav class="navbar">
+    <div class="container navbar__inner">
+      <a href="{{ url_for('dashboard') }}" class="navbar__brand">
+        <span class="brand-icon">🏠</span>
+        Campus Hostel Companion
+      </a>
+      <div class="navbar__links">
+        <a href="{{ url_for('dashboard') }}" class="active">🍽️ Menu</a>
+        <a href="{{ url_for('complaints') }}">📋 Complaints</a>
+        <a href="{{ url_for('announcements') }}">📢 Notices</a>
+        <a href="{{ url_for('logout') }}" class="btn-logout">Log Out</a>
+      </div>
+    </div>
+  </nav>
+
+  <main>
+    <div class="container">
+
+      <!-- Flash messages -->
+      {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+          <div class="alerts">
+            {% for category, message in messages %}
+              <div class="alert alert-{{ category }}">
+                {% if category == 'warning' %}⚠️{% elif category == 'error' %}❌{% elif category == 'success' %}✅{% else %}ℹ️{% endif %}
+                {{ message }}
+              </div>
+            {% endfor %}
+          </div>
+        {% endif %}
+      {% endwith %}
+
+      <!-- Page header -->
+      <div class="section-header">
+        <div>
+          <h1>Today's Mess Menu</h1>
+          <p style="margin-top:.25rem;">
+            Hello, <strong>{{ user.get('username', 'Student') }}</strong>!
+            Here's what's on the menu today.
+          </p>
+        </div>
+        <span style="font-size:.85rem; color:var(--text-muted);">
+          📅 {{ now if now else '' }}
+        </span>
+      </div>
+
+      <!-- ===== Mess menu cards ===== -->
+      {% if menu %}
+        <div class="menu-grid">
+
+          <div class="menu-card">
+            <div class="menu-card__header">☀️ Breakfast</div>
+            <div class="menu-card__body">
+              {{ menu.get('breakfast', 'Not available') }}
+            </div>
+          </div>
+
+          <div class="menu-card">
+            <div class="menu-card__header">🍛 Lunch</div>
+            <div class="menu-card__body">
+              {{ menu.get('lunch', 'Not available') }}
+            </div>
+          </div>
+
+          <div class="menu-card">
+            <div class="menu-card__header">🫖 Snacks</div>
+            <div class="menu-card__body">
+              {{ menu.get('snacks', 'Not available') }}
+            </div>
+          </div>
+
+          <div class="menu-card">
+            <div class="menu-card__header">🌙 Dinner</div>
+            <div class="menu-card__body">
+              {{ menu.get('dinner', 'Not available') }}
+            </div>
+          </div>
+
+        </div>
+
+        <!-- DynamoDB note shown when using placeholder data -->
+        <p style="margin-top:1.25rem; font-size:.82rem; color:var(--text-muted); text-align:center;">
+          ℹ️ Menu shown is a placeholder. Connect DynamoDB (<code>campus-hostel-mess-menu</code> table) to display live data.
+        </p>
+
+      {% else %}
+        <div class="empty-state">
+          <div class="empty-icon">🍽️</div>
+          <h3>No menu available today</h3>
+          <p>Connect the DynamoDB mess-menu table to display today's menu.</p>
+        </div>
+      {% endif %}
+
+      <!-- Quick links -->
+      <div class="card" style="margin-top:2rem;">
+        <h3 style="margin-bottom:1rem;">Quick Actions</h3>
+        <div style="display:flex; gap:1rem; flex-wrap:wrap;">
+          <a href="{{ url_for('raise_complaint') }}" class="btn btn-primary btn-sm">📋 Raise a Complaint</a>
+          <a href="{{ url_for('complaints') }}" class="btn btn-outline btn-sm">🗂️ My Complaints</a>
+          <a href="{{ url_for('announcements') }}" class="btn btn-outline btn-sm">📢 Announcements</a>
+        </div>
+      </div>
+
+    </div>
+  </main>
+
+  <footer class="footer">
+    <p>© 2026 Campus Hostel Companion</p>
+  </footer>
+
+</div>
+<script src="{{ url_for('static', filename='js/app.js') }}"></script>
+</body>
+</html>
