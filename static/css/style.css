@@ -17,15 +17,15 @@
 :root {
   --primary:        #1a7f8e;
   --primary-dark:   #145f6b;
-  --primary-light:  #e8f5f7;
-  --bg:             #f4f7f9;
-  --bg-white:       #ffffff;
+  --primary-light:  #e6f2f4;
+  --bg:             #FBF9F0;
+  --bg-white:       #FFFDF2;
   --text:           #1e2a35;
   --text-muted:     #5a6a78;
-  --border:         #d6e0e8;
+  --border:         #e5e0d3;
   --radius:         10px;
-  --shadow:         0 2px 12px rgba(26,127,142,.10);
-  --shadow-lg:      0 6px 28px rgba(26,127,142,.15);
+  --shadow:         0 2px 12px rgba(26,127,142,.08);
+  --shadow-lg:      0 6px 28px rgba(26,127,142,.12);
   --transition:     0.2s ease;
   --font:           'Inter', sans-serif;
 }
@@ -184,6 +184,31 @@ main { flex: 1; padding-block: 2rem; }
 .btn-outline:hover {
   background: var(--primary-light);
   text-decoration: none;
+}
+
+.btn-secondary {
+  background: var(--primary-light);
+  color: var(--primary-dark);
+  border: 1.5px solid var(--primary);
+}
+
+.btn-secondary:hover {
+  background: #d8edf1;
+  color: var(--primary-dark);
+  text-decoration: none;
+}
+
+.link-signup {
+  color: var(--primary);
+  font-weight: 700;
+  text-decoration: underline;
+  padding: 0.15rem 0.35rem;
+  border-radius: 4px;
+  transition: background var(--transition);
+}
+
+.link-signup:hover {
+  background: var(--primary-light);
 }
 
 .btn-sm { padding: .45rem 1rem; font-size: .875rem; }

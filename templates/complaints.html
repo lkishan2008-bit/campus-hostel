@@ -61,8 +61,10 @@
                 <span>🗂️ {{ c.get('category', 'General') }}</span>
                 <span>📅 {{ c.get('created_at', '') }}</span>
                 <!-- Status badge -->
-                {% set status = c.get('status', 'Open') %}
-                {% if status == 'Open' %}
+                {% set status = c.get('status', 'Pending') %}
+                {% if status == 'Pending' %}
+                  <span class="badge badge-open">Pending</span>
+                {% elif status == 'Open' %}
                   <span class="badge badge-open">Open</span>
                 {% elif status == 'In Progress' %}
                   <span class="badge badge-inprogress">In Progress</span>

@@ -1,37 +1,28 @@
 """
 services/dynamodb.py
 --------------------
-Helpers for AWS DynamoDB operations.
-
-Tables expected (create these in AWS before connecting):
-  1. campus-hostel-complaints     — PK: complaint_id (S)
-  2. campus-hostel-announcements  — PK: announcement_id (S)
-  3. campus-hostel-mess-menu      — PK: day (S)  e.g., "Monday", "Tuesday"
-
-All functions below contain TODOs — fill them in once the DynamoDB tables exist
-and your AWS credentials are set in .env.
+AWS DynamoDB operations for Campus Hostel Companion:
+  - get_todays_menu: Retrieve today's mess menu
+  - create_complaint: Insert a student complaint record
+  - get_user_complaints: Retrieve complaints strictly for the authenticated user
+  - get_announcements: Retrieve hostel-wide announcements (newest first)
 """
 
 import os
+from datetime import datetime
 import boto3
 from botocore.exceptions import ClientError
 
 
-# ---------------------------------------------------------------------------
-# Create the DynamoDB resource
-# ---------------------------------------------------------------------------
 def _get_resource():
-    """
-    Return a boto3 DynamoDB resource.
+    """Return a boto3 DynamoDB resource configured from environment variables."""
+    region = os.environ.get("AWS_REGION", "ap-south-1")
+    return boto3.resource("dynamodb", region_name=region)
 
-    TODO (DynamoDB): Ensure your AWS credentials are set either via:
-      - Environment variables: AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY
-      - Or an IAM role attached to the compute resource.
-    """
-    return boto3.resource(
-        "dynamodb",
-        region_name=os.environ.get("AWS_REGION", "ap-south-1"),
-    )
+
+def is_dynamodb_configured() -> bool:
+    """Return True if AWS credentials or custom tables are set."""
+    return bool(os.environ.get("AWS_ACCESS_KEY_ID") or os.environ.get("DYNAMODB_COMPLAINTS_TABLE"))
 
 
 # ---------------------------------------------------------------------------
@@ -39,85 +30,105 @@ def _get_resource():
 # ---------------------------------------------------------------------------
 def get_todays_menu() -> dict:
     """
-    Fetch today's mess menu from DynamoDB.
-
-    Returns a dict like:
-        {"breakfast": "...", "lunch": "...", "snacks": "...", "dinner": "..."}
-    Returns an empty dict if no menu found.
-
-    TODO (DynamoDB): Uncomment the code below after creating the table.
+    Fetch today's mess menu from DynamoDB for the current day of the week.
+    Returns a dict with breakfast, lunch, snacks, dinner, and day.
     """
-    # import datetime
-    # day_name = datetime.datetime.now().strftime("%A")   # e.g., "Monday"
-    # try:
-    #     db = _get_resource()
-    #     table = db.Table(os.environ["DYNAMODB_MESS_MENU_TABLE"])
-    #     response = table.get_item(Key={"day": day_name})
-    #     return response.get("Item", {})
-    # except ClientError as e:
-    #     print("DynamoDB error (get_todays_menu):", e)
-    #     return {}
+    table_name = os.environ.get("DYNAMODB_MESS_MENU_TABLE", "campus-hostel-mess-menu")
+    day_name = datetime.now().strftime("%A")
 
-    return {}  # Returns empty dict until DynamoDB is connected
+    try:
+        db = _get_resource()
+        table = db.Table(table_name)
+        response = table.get_item(Key={"day": day_name})
+        item = response.get("Item")
+        if item:
+            return item
+    except Exception:
+        pass
+
+    # Standard fallback schedule if table is not yet seeded
+    return {
+        "day": day_name,
+        "breakfast": "Poha, Boiled Eggs / Banana, Tea & Coffee",
+        "lunch": "Steamed Rice, Dal Tadka, Seasonal Sabzi, Chapati, Curd, Salad",
+        "snacks": "Veg Cutlet / Samosa, Masala Chai",
+        "dinner": "Jeera Rice, Paneer Butter Masala / Dal Makhani, Tandoori Roti, Kheer",
+    }
 
 
 # ---------------------------------------------------------------------------
 # Complaints
 # ---------------------------------------------------------------------------
-def create_complaint(complaint: dict) -> bool:
+def create_complaint(complaint: dict) -> tuple[bool, str]:
     """
     Save a new complaint to DynamoDB.
 
-    Args:
-        complaint: dict with keys:
-            complaint_id, user_id, title, category, description,
-            status, created_at
+    Required fields in complaint dict:
+        complaint_id (str): UUID
+        user_id (str): student username
+        title (str): summary
+        category (str): e.g. Maintenance, Food, Cleanliness
+        description (str): full details
+        status (str): "Pending" or "Open"
+        created_at (str): ISO 8601 timestamp
 
-    Returns True on success, False on failure.
-
-    TODO (DynamoDB): Uncomment the code below after creating the table.
+    Returns:
+        (True, "") on success
+        (False, error_message) on failure
     """
-    # try:
-    #     db = _get_resource()
-    #     table = db.Table(os.environ["DYNAMODB_COMPLAINTS_TABLE"])
-    #     table.put_item(Item=complaint)
-    #     return True
-    # except ClientError as e:
-    #     print("DynamoDB error (create_complaint):", e)
-    #     return False
+    table_name = os.environ.get("DYNAMODB_COMPLAINTS_TABLE", "campus-hostel-complaints")
 
-    return False  # Returns False until DynamoDB is connected
+    try:
+        db = _get_resource()
+        table = db.Table(table_name)
+        table.put_item(Item=complaint)
+        return True, ""
+    except ClientError as e:
+        error_msg = e.response.get("Error", {}).get("Message", str(e))
+        return False, error_msg
+    except Exception as e:
+        return False, str(e)
 
 
 def get_user_complaints(user_id: str) -> list:
     """
-    Fetch all complaints belonging to a specific user.
-
-    Returns a list of complaint dicts, newest first.
-
-    TODO (DynamoDB): Uncomment the code below after creating the table.
-      Also create a Global Secondary Index (GSI) on user_id for efficient queries:
-        GSI name: user_id-index   PK: user_id (S)
-
-    Without a GSI, you'd need a full scan (not recommended for production).
+    Fetch all complaints belonging strictly to the authenticated user.
+    Enforces user isolation so students cannot view another student's complaints.
     """
-    # try:
-    #     from boto3.dynamodb.conditions import Key
-    #     db = _get_resource()
-    #     table = db.Table(os.environ["DYNAMODB_COMPLAINTS_TABLE"])
-    #     response = table.query(
-    #         IndexName="user_id-index",
-    #         KeyConditionExpression=Key("user_id").eq(user_id),
-    #     )
-    #     items = response.get("Items", [])
-    #     # Sort newest first by created_at
-    #     items.sort(key=lambda x: x.get("created_at", ""), reverse=True)
-    #     return items
-    # except ClientError as e:
-    #     print("DynamoDB error (get_user_complaints):", e)
-    #     return []
+    if not user_id:
+        return []
 
-    return []  # Returns empty list until DynamoDB is connected
+    table_name = os.environ.get("DYNAMODB_COMPLAINTS_TABLE", "campus-hostel-complaints")
+
+    try:
+        from boto3.dynamodb.conditions import Key, Attr
+        db = _get_resource()
+        table = db.Table(table_name)
+
+        items = []
+        # Try GSI query on user_id-index first
+        try:
+            response = table.query(
+                IndexName="user_id-index",
+                KeyConditionExpression=Key("user_id").eq(user_id),
+            )
+            items = response.get("Items", [])
+        except Exception:
+            # Fallback to filtered scan if GSI is not indexed or unavailable
+            try:
+                response = table.scan(
+                    FilterExpression=Attr("user_id").eq(user_id)
+                )
+                items = response.get("Items", [])
+            except Exception:
+                items = []
+
+        # Secondary defense: strictly ensure every item matches user_id
+        filtered = [item for item in items if item.get("user_id") == user_id]
+        filtered.sort(key=lambda x: x.get("created_at", ""), reverse=True)
+        return filtered
+    except Exception:
+        return []
 
 
 # ---------------------------------------------------------------------------
@@ -126,21 +137,15 @@ def get_user_complaints(user_id: str) -> list:
 def get_announcements() -> list:
     """
     Fetch all announcements from DynamoDB, sorted newest first.
-
-    Returns a list of announcement dicts.
-
-    TODO (DynamoDB): Uncomment the code below after creating the table.
-      For production, add a sort key or use a scan with a filter.
     """
-    # try:
-    #     db = _get_resource()
-    #     table = db.Table(os.environ["DYNAMODB_ANNOUNCEMENTS_TABLE"])
-    #     response = table.scan()
-    #     items = response.get("Items", [])
-    #     items.sort(key=lambda x: x.get("created_at", ""), reverse=True)
-    #     return items
-    # except ClientError as e:
-    #     print("DynamoDB error (get_announcements):", e)
-    #     return []
+    table_name = os.environ.get("DYNAMODB_ANNOUNCEMENTS_TABLE", "campus-hostel-announcements")
 
-    return []  # Returns empty list until DynamoDB is connected
+    try:
+        db = _get_resource()
+        table = db.Table(table_name)
+        response = table.scan()
+        items = response.get("Items", [])
+        items.sort(key=lambda x: x.get("created_at", ""), reverse=True)
+        return items
+    except Exception:
+        return []
