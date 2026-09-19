@@ -1,0 +1,55 @@
+{% extends "base.html" %}
+
+{% block title %}Verify Email | Campus Hostel Companion{% endblock %}
+
+{% block content %}
+<div class="auth-container">
+  <div class="auth-card">
+    <h1>Verify your email</h1>
+    <p class="auth-subtext">
+      A 6-digit code was sent to <strong>{{ email }}</strong>.<br>
+      Enter it below to activate your account.
+    </p>
+
+    <form method="POST" action="{{ url_for('verify_email') }}" novalidate>
+      <input type="hidden" name="action" value="verify" />
+
+      <div class="form-group" style="margin-bottom: 1.5rem;">
+        <label for="verify-code">Verification code</label>
+        <input
+          type="text"
+          id="verify-code"
+          name="code"
+          class="form-input"
+          placeholder="e.g. 123456"
+          inputmode="numeric"
+          autocomplete="one-time-code"
+          maxlength="8"
+          required
+          autofocus
+        />
+      </div>
+
+      <button type="submit" class="btn-black" style="width: 100%;" id="btn-verify-email">
+        <span>Verify email &rarr;</span>
+      </button>
+    </form>
+
+    <div class="or-divider">OR</div>
+
+    <form method="POST" action="{{ url_for('verify_email') }}" style="text-align: center;">
+      <input type="hidden" name="action" value="resend" />
+      <button type="submit" class="btn-outline" style="width: 100%;" id="btn-resend-code">
+        Resend code
+      </button>
+    </form>
+
+    <p class="auth-note" style="margin-top: 1.25rem;">
+      Wrong account?
+      <a href="{{ url_for('login', tab='register') }}" style="color: var(--text-main); font-weight: 500;">Register again</a>
+      &nbsp;or&nbsp;
+      <a href="{{ url_for('login') }}" style="color: var(--text-main); font-weight: 500;">Sign in</a>
+    </p>
+  </div>
+</div>
+{% endblock %}

@@ -28,12 +28,15 @@ app.secret_key = os.environ.get("FLASK_SECRET_KEY", "dev-fallback-secret-key")
 # -------------------------------------------------------------------------
 # Services
 # -------------------------------------------------------------------------
-from services.cognito import register_user, authenticate_user
+from services.cognito import register_user, authenticate_user, confirm_user, resend_verification_code
 from services.dynamodb import (
     get_todays_menu,
+    get_weekly_menu,
+    save_weekly_menu,
     create_complaint,
     get_user_complaints,
     get_announcements,
+    DAYS_OF_WEEK,
 )
 
 
@@ -109,12 +112,11 @@ def login():
             if result["success"]:
                 if result.get("user_confirmed"):
                     flash("Account created! You can sign in now.", "success")
+                    return render_template("auth.html", active_tab="login")
                 else:
-                    flash(
-                        "Account created! Please check your email for a verification code, then sign in.",
-                        "success",
-                    )
-                return render_template("auth.html", active_tab="login")
+                    # Redirect to email verification page
+                    session["pending_verification_email"] = email
+                    return redirect(url_for("verify_email"))
             else:
                 flash(result["error"], "error")
                 return render_template("auth.html", active_tab="register")
@@ -141,6 +143,50 @@ def login():
     return render_template("auth.html", active_tab=active_tab)
 
 
+@app.route("/verify-email", methods=["GET", "POST"])
+def verify_email():
+    """Verify email with Cognito confirmation code sent after registration."""
+    if is_logged_in():
+        return redirect(url_for("dashboard"))
+
+    email = session.get("pending_verification_email", "")
+    # Allow ?email= param for direct linking
+    if not email:
+        email = request.args.get("email", "").strip()
+
+    if not email:
+        flash("No pending verification. Please register first.", "info")
+        return redirect(url_for("login", tab="register"))
+
+    if request.method == "POST":
+        action = request.form.get("action", "verify")
+
+        if action == "resend":
+            result = resend_verification_code(email)
+            if result["success"]:
+                flash("A new verification code has been sent to your email.", "success")
+            else:
+                flash(result["error"], "error")
+            return render_template("verify_email.html", email=email)
+
+        # Default: verify the code
+        code = request.form.get("code", "").strip()
+        if not code:
+            flash("Please enter the verification code.", "error")
+            return render_template("verify_email.html", email=email)
+
+        result = confirm_user(email, code)
+        if result["success"]:
+            session.pop("pending_verification_email", None)
+            flash("Email verified! You can now sign in.", "success")
+            return redirect(url_for("login"))
+        else:
+            flash(result["error"], "error")
+            return render_template("verify_email.html", email=email)
+
+    return render_template("verify_email.html", email=email)
+
+
 @app.route("/guest-login")
 def guest_login():
     """Log in as a guest resident."""
@@ -153,7 +199,6 @@ def guest_login():
 def signup():
     """Handle new student registration via AWS Cognito — redirects to /auth."""
     return redirect(url_for("login", tab="register"))
-
 
 
 @app.route("/logout")
@@ -192,6 +237,55 @@ def dashboard():
         total_count=total_count,
     )
 
+
+@app.route("/weekly-menu")
+@login_required
+def weekly_menu():
+    """Show the full 7-day mess menu."""
+    user = session.get("user", {})
+    weekly = get_weekly_menu()
+    today = datetime.now().strftime("%A")
+    return render_template("weekly_menu.html", weekly=weekly, days=DAYS_OF_WEEK, today=today, user=user)
+
+
+@app.route("/edit-menu", methods=["GET", "POST"])
+@login_required
+def edit_menu():
+    """Allow authenticated hostel users to update the weekly mess menu."""
+    user = session.get("user", {})
+
+    if request.method == "POST":
+        menu_data = {}
+        for day in DAYS_OF_WEEK:
+            menu_data[day] = {
+                "breakfast": request.form.get(f"{day}_breakfast", "").strip(),
+                "lunch":     request.form.get(f"{day}_lunch", "").strip(),
+                "dinner":    request.form.get(f"{day}_dinner", "").strip(),
+            }
+
+        # Validate at least one meal is filled per day
+        errors = []
+        for day in DAYS_OF_WEEK:
+            entry = menu_data[day]
+            if not entry["breakfast"] or not entry["lunch"] or not entry["dinner"]:
+                errors.append(f"{day}: all three meals (Breakfast, Lunch, Dinner) are required.")
+
+        if errors:
+            flash(" | ".join(errors), "error")
+            weekly = get_weekly_menu()
+            return render_template("edit_menu.html", weekly=weekly, days=DAYS_OF_WEEK, user=user)
+
+        success, err = save_weekly_menu(menu_data)
+        if success:
+            flash("Weekly menu updated successfully!", "success")
+            return redirect(url_for("weekly_menu"))
+        else:
+            flash(f"Failed to save menu: {err}", "error")
+            weekly = get_weekly_menu()
+            return render_template("edit_menu.html", weekly=weekly, days=DAYS_OF_WEEK, user=user)
+
+    weekly = get_weekly_menu()
+    return render_template("edit_menu.html", weekly=weekly, days=DAYS_OF_WEEK, user=user)
 
 
 @app.route("/complaints")

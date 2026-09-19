@@ -28,13 +28,15 @@
       </a>
 
       {% if session.get('user') %}
-        <!-- On all other pages (logged in): nav tabs Dashboard | Raise a complaint | My complaints | Announcements -->
+        <!-- On all other pages (logged in): nav tabs Dashboard | Raise a complaint | My complaints | Weekly Menu | Announcements -->
         <div class="navbar__tabs">
           <a href="{{ url_for('dashboard') }}" class="navbar__tab {% if request.endpoint == 'dashboard' %}active{% endif %}">Dashboard</a>
           <span class="nav-pipe">|</span>
           <a href="{{ url_for('raise_complaint') }}" class="navbar__tab {% if request.endpoint in ['raise_complaint', 'complaints_new'] %}active{% endif %}">Raise a Complaint</a>
           <span class="nav-pipe">|</span>
           <a href="{{ url_for('complaints') }}" class="navbar__tab {% if request.endpoint == 'complaints' %}active{% endif %}">My Complaints</a>
+          <span class="nav-pipe">|</span>
+          <a href="{{ url_for('weekly_menu') }}" class="navbar__tab {% if request.endpoint in ['weekly_menu', 'edit_menu'] %}active{% endif %}">Weekly Menu</a>
           <span class="nav-pipe">|</span>
           <a href="{{ url_for('announcements') }}" class="navbar__tab {% if request.endpoint == 'announcements' %}active{% endif %}">Announcements</a>
         </div>

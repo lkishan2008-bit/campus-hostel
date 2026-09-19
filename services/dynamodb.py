@@ -2,7 +2,9 @@
 services/dynamodb.py
 --------------------
 AWS DynamoDB operations for Campus Hostel Companion:
-  - get_todays_menu: Retrieve today's mess menu
+  - get_todays_menu: Retrieve today's mess menu from the weekly schedule
+  - get_weekly_menu: Retrieve the full 7-day weekly mess menu
+  - save_weekly_menu: Write/overwrite the 7-day weekly mess menu
   - create_complaint: Insert a student complaint record
   - get_user_complaints: Retrieve complaints strictly for the authenticated user
   - get_announcements: Retrieve hostel-wide announcements (newest first)
@@ -12,6 +14,18 @@ import os
 from datetime import datetime
 import boto3
 from botocore.exceptions import ClientError
+
+DAYS_OF_WEEK = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
+
+FALLBACK_MENU = {
+    "Monday":    {"breakfast": "Poha, Boiled Eggs, Tea & Coffee",       "lunch": "Steamed Rice, Dal Tadka, Sabzi, Roti, Curd",        "dinner": "Jeera Rice, Paneer Butter Masala, Tandoori Roti"},
+    "Tuesday":   {"breakfast": "Idli, Sambar, Coconut Chutney, Tea",    "lunch": "Rajma Rice, Chapati, Salad, Papad",                "dinner": "Fried Rice, Mixed Veg Curry, Dal Fry, Roti"},
+    "Wednesday": {"breakfast": "Upma, Boiled Eggs / Banana, Tea",       "lunch": "Chole Rice, Chapati, Raita, Salad",                "dinner": "Dal Makhani, Butter Naan, Steamed Rice, Kheer"},
+    "Thursday":  {"breakfast": "Paratha, Curd, Pickle, Tea",            "lunch": "Steamed Rice, Sambhar, Rasam, Chapati, Papad",     "dinner": "Biryani, Raita, Mirchi ka Salan, Roti"},
+    "Friday":    {"breakfast": "Bread Butter, Omelette / Jam, Tea",     "lunch": "Pulao, Kadai Paneer, Chapati, Salad",              "dinner": "Roti, Dal Tadka, Aloo Gobi, Rice, Gulab Jamun"},
+    "Saturday":  {"breakfast": "Aloo Paratha, Curd, Pickle, Tea",       "lunch": "Pav Bhaji, Salad, Buttermilk",                    "dinner": "Paneer Tikka Masala, Jeera Rice, Roti, Ice Cream"},
+    "Sunday":    {"breakfast": "Puri, Chole, Banana, Tea & Coffee",     "lunch": "Chicken Curry / Paneer Gravy, Rice, Roti, Raita", "dinner": "Special Biryani, Raita, Boondi Ladoo"},
+}
 
 
 def _get_resource():
@@ -26,12 +40,45 @@ def is_dynamodb_configured() -> bool:
 
 
 # ---------------------------------------------------------------------------
-# Mess Menu
+# Mess Menu — Weekly
 # ---------------------------------------------------------------------------
+def get_weekly_menu() -> dict:
+    """
+    Fetch the complete 7-day mess menu from DynamoDB.
+    Returns a dict keyed by day name, each value having breakfast/lunch/dinner.
+    Falls back to FALLBACK_MENU if DynamoDB is unavailable or table is empty.
+    """
+    table_name = os.environ.get("DYNAMODB_MESS_MENU_TABLE", "campus-hostel-mess-menu")
+    result = {}
+
+    try:
+        db = _get_resource()
+        table = db.Table(table_name)
+        for day in DAYS_OF_WEEK:
+            response = table.get_item(Key={"day": day})
+            item = response.get("Item")
+            if item:
+                result[day] = {
+                    "breakfast": item.get("breakfast", ""),
+                    "lunch":     item.get("lunch", ""),
+                    "dinner":    item.get("dinner", ""),
+                }
+    except Exception:
+        pass
+
+    # Fill any missing days with fallback so the page never crashes
+    for day in DAYS_OF_WEEK:
+        if day not in result or not any(result[day].values()):
+            result[day] = dict(FALLBACK_MENU[day])
+
+    return result
+
+
 def get_todays_menu() -> dict:
     """
-    Fetch today's mess menu from DynamoDB for the current day of the week.
-    Returns a dict with breakfast, lunch, snacks, dinner, and day.
+    Fetch today's mess menu from the weekly schedule stored in DynamoDB.
+    Returns a dict with day, breakfast, lunch, dinner.
+    Falls back to the FALLBACK_MENU if DynamoDB is unavailable.
     """
     table_name = os.environ.get("DYNAMODB_MESS_MENU_TABLE", "campus-hostel-mess-menu")
     day_name = datetime.now().strftime("%A")
@@ -41,25 +88,57 @@ def get_todays_menu() -> dict:
         table = db.Table(table_name)
         response = table.get_item(Key={"day": day_name})
         item = response.get("Item")
-        if item:
-            return item
+        if item and (item.get("breakfast") or item.get("lunch") or item.get("dinner")):
+            return {
+                "day":       item.get("day", day_name),
+                "breakfast": item.get("breakfast", ""),
+                "lunch":     item.get("lunch", ""),
+                "dinner":    item.get("dinner", ""),
+            }
     except Exception:
         pass
 
-    # Standard fallback schedule if table is not yet seeded
-    return {
-        "day": day_name,
-        "breakfast": "Poha, Boiled Eggs / Banana, Tea & Coffee",
-        "lunch": "Steamed Rice, Dal Tadka, Seasonal Sabzi, Chapati, Curd, Salad",
-        "snacks": "Veg Cutlet / Samosa, Masala Chai",
-        "dinner": "Jeera Rice, Paneer Butter Masala / Dal Makhani, Tandoori Roti, Kheer",
-    }
+    fallback = FALLBACK_MENU.get(day_name, list(FALLBACK_MENU.values())[0])
+    return {"day": day_name, **fallback}
+
+
+def save_weekly_menu(menu_data: dict) -> tuple:
+    """
+    Write the 7-day weekly mess menu to DynamoDB.
+
+    Args:
+        menu_data: dict keyed by day name, each value must have
+                   keys: breakfast, lunch, dinner  (all strings)
+
+    Returns:
+        (True, "") on success
+        (False, error_message) on failure
+    """
+    table_name = os.environ.get("DYNAMODB_MESS_MENU_TABLE", "campus-hostel-mess-menu")
+
+    try:
+        db = _get_resource()
+        table = db.Table(table_name)
+        for day in DAYS_OF_WEEK:
+            day_entry = menu_data.get(day, {})
+            table.put_item(Item={
+                "day":       day,
+                "breakfast": str(day_entry.get("breakfast", "")).strip(),
+                "lunch":     str(day_entry.get("lunch", "")).strip(),
+                "dinner":    str(day_entry.get("dinner", "")).strip(),
+            })
+        return True, ""
+    except ClientError as e:
+        error_msg = e.response.get("Error", {}).get("Message", str(e))
+        return False, error_msg
+    except Exception as e:
+        return False, str(e)
 
 
 # ---------------------------------------------------------------------------
 # Complaints
 # ---------------------------------------------------------------------------
-def create_complaint(complaint: dict) -> tuple[bool, str]:
+def create_complaint(complaint: dict) -> tuple:
     """
     Save a new complaint to DynamoDB.
 

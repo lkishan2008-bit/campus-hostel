@@ -313,7 +313,45 @@ def confirm_user(username: str, confirmation_code: str) -> dict:
         client.confirm_sign_up(**kwargs)
         return {"success": True}
     except ClientError as e:
+        error_code = e.response.get("Error", {}).get("Code", "")
+        error_msg = e.response.get("Error", {}).get("Message", str(e))
+        if error_code == "CodeMismatchException":
+            return {"success": False, "error": "Incorrect verification code. Please try again."}
+        elif error_code == "ExpiredCodeException":
+            return {"success": False, "error": "Verification code has expired. Please request a new one."}
+        elif error_code == "NotAuthorizedException":
+            return {"success": False, "error": "This account is already confirmed. Please sign in."}
+        return {"success": False, "error": error_msg}
+    except Exception as e:
+        return {"success": False, "error": str(e)}
+
+
+def resend_verification_code(username: str) -> dict:
+    """Re-send the email verification code for an unconfirmed Cognito user."""
+    client_id = os.environ.get("COGNITO_APP_CLIENT_ID")
+    if not client_id:
+        return {
+            "success": False,
+            "error": "AWS Cognito is not configured. Please set COGNITO_APP_CLIENT_ID in .env.",
+        }
+
+    client = _get_client()
+    client_secret = _get_client_secret(client_id)
+
+    cognito_username = username.strip()
+    kwargs = {
+        "ClientId": client_id,
+        "Username": cognito_username,
+    }
+    if client_secret:
+        kwargs["SecretHash"] = _calculate_secret_hash(cognito_username, client_id, client_secret)
+
+    try:
+        client.resend_confirmation_code(**kwargs)
+        return {"success": True}
+    except ClientError as e:
         error_msg = e.response.get("Error", {}).get("Message", str(e))
         return {"success": False, "error": error_msg}
     except Exception as e:
         return {"success": False, "error": str(e)}
+
