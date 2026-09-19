@@ -19,6 +19,7 @@ app = Flask(
     template_folder=os.path.join(BASE_DIR, "templates"),
     static_folder=os.path.join(BASE_DIR, "static"),
 )
+application = app
 
 # -------------------------------------------------------------------------
 # Flask secret key — required for session management
