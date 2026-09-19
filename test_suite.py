@@ -39,28 +39,30 @@ class CampusHostelCompanionTestCase(unittest.TestCase):
     # ---------------------------------------------------------------------
     @patch("app.register_user")
     def test_signup_success(self, mock_register):
-        """Test successful user registration via Cognito."""
+        """Test successful user registration via the /auth register tab."""
         mock_register.return_value = {"success": True, "user_confirmed": True, "user_sub": "sub-123"}
 
-        resp = self.client.post("/signup", data={
+        resp = self.client.post("/auth", data={
+            "tab": "register",
             "username": "student1",
-            "email": "student1@campus.edu",
-            "password": "Password123!",
+            "reg_email": "student1@campus.edu",
+            "reg_password": "Password123!",
         }, follow_redirects=True)
 
         self.assertEqual(resp.status_code, 200)
         mock_register.assert_called_once_with("student1", "student1@campus.edu", "Password123!")
-        self.assertIn(b"Account created successfully", resp.data)
+        self.assertIn(b"Account created", resp.data)
 
     @patch("app.register_user")
     def test_signup_failure(self, mock_register):
         """Test registration failure returns the error message."""
         mock_register.return_value = {"success": False, "error": "Username already exists."}
 
-        resp = self.client.post("/signup", data={
+        resp = self.client.post("/auth", data={
+            "tab": "register",
             "username": "existing_user",
-            "email": "user@campus.edu",
-            "password": "Password123!",
+            "reg_email": "user@campus.edu",
+            "reg_password": "Password123!",
         }, follow_redirects=True)
 
         self.assertEqual(resp.status_code, 200)

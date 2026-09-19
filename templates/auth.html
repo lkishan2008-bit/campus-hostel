@@ -1,54 +1,161 @@
 {% extends "base.html" %}
 
-{% block title %}Log in or sign up | Campus Hostel Companion{% endblock %}
+{% block title %}Log in or Register | Campus Hostel Companion{% endblock %}
 
 {% block content %}
 <div class="auth-container">
   <div class="auth-card">
-    <h1>Log in or sign up</h1>
-    <p class="auth-subtext">Enter your college email and we'll send you a one-time code.</p>
 
-    <form method="POST" action="{{ url_for('login') }}">
-      <div class="form-group">
-        <label for="email">College email</label>
-        <input
-          type="email"
-          id="email"
-          name="email"
-          class="form-input"
-          placeholder="name@college.edu"
-          required
-          autofocus
-        />
-      </div>
+    <!-- ── Tab bar ─────────────────────────────────── -->
+    <div class="auth-tabs" role="tablist">
+      <button
+        type="button"
+        class="auth-tab {% if active_tab != 'register' %}active{% endif %}"
+        id="tab-login"
+        role="tab"
+        aria-selected="{{ 'true' if active_tab != 'register' else 'false' }}"
+        data-tab="login"
+      >Sign in</button>
+      <button
+        type="button"
+        class="auth-tab {% if active_tab == 'register' %}active{% endif %}"
+        id="tab-register"
+        role="tab"
+        aria-selected="{{ 'true' if active_tab == 'register' else 'false' }}"
+        data-tab="register"
+      >Register</button>
+    </div>
 
-      <div class="form-group" style="margin-bottom: 1.5rem;">
-        <label for="password">Password</label>
-        <input
-          type="password"
-          id="password"
-          name="password"
-          class="form-input"
-          placeholder="Enter password (if registered)"
-        />
-      </div>
+    <!-- ── Login Panel ──────────────────────────────── -->
+    <div id="panel-login" class="auth-panel {% if active_tab == 'register' %}hidden{% endif %}">
+      <p class="auth-subtext">Enter your college email and password to sign in.</p>
 
-      <button type="submit" class="btn-black" style="width: 100%;">
-        <span>Continue &rarr;</span>
-      </button>
+      <form method="POST" action="{{ url_for('login') }}" novalidate>
+        <input type="hidden" name="tab" value="login" />
 
-      <p class="auth-note">New here? Verifying your email creates your account.</p>
-    </form>
+        <div class="form-group">
+          <label for="login-email">College email</label>
+          <input
+            type="email"
+            id="login-email"
+            name="email"
+            class="form-input"
+            placeholder="name@college.edu"
+            autocomplete="email"
+            required
+          />
+        </div>
 
-    <div class="or-divider">OR</div>
+        <div class="form-group" style="margin-bottom: 1.5rem;">
+          <label for="login-password">Password</label>
+          <input
+            type="password"
+            id="login-password"
+            name="password"
+            class="form-input"
+            placeholder="Your password"
+            autocomplete="current-password"
+            required
+          />
+        </div>
 
-    <a href="{{ url_for('guest_login') }}" class="btn-outline" style="width: 100%;">
-      <svg class="icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#111111" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-        <path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"></path>
-        <circle cx="12" cy="7" r="4"></circle>
-      </svg>
-      <span>Continue as guest</span>
-    </a>
+        <button type="submit" class="btn-black" style="width: 100%;" id="btn-login">
+          <span>Sign in &rarr;</span>
+        </button>
+      </form>
+
+      <div class="or-divider">OR</div>
+
+      <a href="{{ url_for('guest_login') }}" class="btn-outline" style="width: 100%;" id="btn-guest">
+        <svg class="icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#111111" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"></path>
+          <circle cx="12" cy="7" r="4"></circle>
+        </svg>
+        <span>Continue as guest</span>
+      </a>
+    </div>
+
+    <!-- ── Register Panel ───────────────────────────── -->
+    <div id="panel-register" class="auth-panel {% if active_tab != 'register' %}hidden{% endif %}">
+      <p class="auth-subtext">Create your account with your college email.</p>
+
+      <form method="POST" action="{{ url_for('login') }}" novalidate>
+        <input type="hidden" name="tab" value="register" />
+
+        <div class="form-group">
+          <label for="reg-name">Display name</label>
+          <input
+            type="text"
+            id="reg-name"
+            name="username"
+            class="form-input"
+            placeholder="e.g. Alice Kumar"
+            autocomplete="name"
+            required
+          />
+        </div>
+
+        <div class="form-group">
+          <label for="reg-email">College email</label>
+          <input
+            type="email"
+            id="reg-email"
+            name="reg_email"
+            class="form-input"
+            placeholder="name@college.edu"
+            autocomplete="email"
+            required
+          />
+        </div>
+
+        <div class="form-group" style="margin-bottom: 1.5rem;">
+          <label for="reg-password">Password
+            <span class="auth-note" style="font-size: 0.7rem; display: inline; margin: 0; text-align: left;">
+              &nbsp;(8+ chars, upper, lower, number, symbol)
+            </span>
+          </label>
+          <input
+            type="password"
+            id="reg-password"
+            name="reg_password"
+            class="form-input"
+            placeholder="Create a strong password"
+            autocomplete="new-password"
+            minlength="8"
+            required
+          />
+        </div>
+
+        <button type="submit" class="btn-black" style="width: 100%;" id="btn-register">
+          <span>Create account &rarr;</span>
+        </button>
+      </form>
+    </div>
+
   </div>
 </div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+(function () {
+  const tabs    = document.querySelectorAll('.auth-tab');
+  const panels  = document.querySelectorAll('.auth-panel');
+
+  tabs.forEach(tab => {
+    tab.addEventListener('click', () => {
+      const target = tab.dataset.tab;
+      tabs.forEach(t => {
+        t.classList.toggle('active', t.dataset.tab === target);
+        t.setAttribute('aria-selected', t.dataset.tab === target ? 'true' : 'false');
+      });
+      panels.forEach(p => {
+        p.classList.toggle('hidden', p.id !== `panel-${target}`);
+      });
+      // Update URL without reload so browser back works
+      history.replaceState(null, '', `?tab=${target}`);
+    });
+  });
+})();
+</script>
 {% endblock %}

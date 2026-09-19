@@ -81,36 +81,64 @@ def health():
 @app.route("/auth", methods=["GET", "POST"])
 @app.route("/login", methods=["GET", "POST"])
 def login():
-    """Handle user login via AWS Cognito or display the auth card."""
+    """Handle user login/registration via AWS Cognito or display the auth card."""
     if is_logged_in():
         return redirect(url_for("dashboard"))
 
+    # Preserve active tab (login or register) for template
+    active_tab = request.args.get("tab", "login")
+
     if request.method == "POST":
-        username = request.form.get("email", "").strip() or request.form.get("username", "").strip()
-        password = request.form.get("password", "").strip()
+        form_tab = request.form.get("tab", "login")
 
-        # If user submits email in demo mode without password, fallback to test/demo or require password if provided
-        if not username:
-            flash("College email is required.", "error")
-            return render_template("auth.html")
+        if form_tab == "register":
+            # ── Registration branch ──────────────────────────────────────────
+            display_name = request.form.get("username", "").strip()
+            email        = request.form.get("reg_email", "").strip()
+            password     = request.form.get("reg_password", "").strip()
 
-        # If password is provided, attempt Cognito auth
-        if password:
+            if not email or not password:
+                flash("Email and password are required to register.", "error")
+                return render_template("auth.html", active_tab="register")
+
+            if len(password) < 8:
+                flash("Password must be at least 8 characters.", "error")
+                return render_template("auth.html", active_tab="register")
+
+            result = register_user(display_name or email.split("@")[0], email, password)
+            if result["success"]:
+                if result.get("user_confirmed"):
+                    flash("Account created! You can sign in now.", "success")
+                else:
+                    flash(
+                        "Account created! Please check your email for a verification code, then sign in.",
+                        "success",
+                    )
+                return render_template("auth.html", active_tab="login")
+            else:
+                flash(result["error"], "error")
+                return render_template("auth.html", active_tab="register")
+
+        else:
+            # ── Login branch ─────────────────────────────────────────────────
+            username = request.form.get("email", "").strip() or request.form.get("username", "").strip()
+            password = request.form.get("password", "").strip()
+
+            if not username or not password:
+                flash("Email and password are both required.", "error")
+                return render_template("auth.html", active_tab="login")
+
             result = authenticate_user(username, password)
             if result["success"]:
                 session["user"] = result["user"]
-                flash(f"Welcome back, {username}!", "success")
+                display = result["user"].get("username") or username
+                flash(f"Welcome back, {display}!", "success")
                 return redirect(url_for("dashboard"))
             else:
                 flash(result["error"], "error")
-                return render_template("auth.html")
-        else:
-            # When testing or logging in via OTP prompt, log in user session
-            session["user"] = {"username": username.split("@")[0], "email": username}
-            flash(f"Welcome back, {username}!", "success")
-            return redirect(url_for("dashboard"))
+                return render_template("auth.html", active_tab="login")
 
-    return render_template("auth.html")
+    return render_template("auth.html", active_tab=active_tab)
 
 
 @app.route("/guest-login")
@@ -123,35 +151,9 @@ def guest_login():
 
 @app.route("/signup", methods=["GET", "POST"])
 def signup():
-    """Handle new student registration via AWS Cognito."""
-    if is_logged_in():
-        return redirect(url_for("dashboard"))
+    """Handle new student registration via AWS Cognito — redirects to /auth."""
+    return redirect(url_for("login", tab="register"))
 
-    if request.method == "POST":
-        email    = request.form.get("email", "").strip()
-        username = request.form.get("username", "").strip() or email
-        password = request.form.get("password", "").strip()
-
-        if not username or not email or not password:
-            flash("All fields are required.", "error")
-            return render_template("signup.html")
-
-        if len(password) < 8:
-            flash("Password must be at least 8 characters long.", "error")
-            return render_template("signup.html")
-
-        result = register_user(username, email, password)
-        if result["success"]:
-            if result.get("user_confirmed"):
-                flash("Account created successfully! You can now log in.", "success")
-            else:
-                flash("Account created! Please check your email for the confirmation link/code, then log in.", "success")
-            return render_template("login.html")
-        else:
-            flash(result["error"], "error")
-            return render_template("signup.html")
-
-    return render_template("signup.html")
 
 
 @app.route("/logout")
