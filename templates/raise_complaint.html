@@ -1,119 +1,68 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <meta name="description" content="Raise a Complaint — submit hostel issues to the administration." />
-  <title>Raise Complaint | Campus Hostel Companion</title>
-  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}" />
-</head>
-<body>
-<div class="page-wrapper">
+{% extends "base.html" %}
 
-  <!-- ===== Navbar ===== -->
-  <nav class="navbar">
-    <div class="container navbar__inner">
-      <a href="{{ url_for('dashboard') }}" class="navbar__brand">
-        <span class="brand-icon">🏠</span>
-        Campus Hostel Companion
-      </a>
-      <div class="navbar__links">
-        <a href="{{ url_for('dashboard') }}">🍽️ Menu</a>
-        <a href="{{ url_for('complaints') }}" class="active">📋 Complaints</a>
-        <a href="{{ url_for('announcements') }}">📢 Notices</a>
-        <a href="{{ url_for('logout') }}" class="btn-logout">Log Out</a>
-      </div>
-    </div>
-  </nav>
+{% block title %}Raise a complaint | Campus Hostel Companion{% endblock %}
 
-  <main>
-    <div class="container">
+{% block content %}
+<a href="{{ url_for('dashboard') }}" class="back-link">&larr; Back to dashboard</a>
 
-      <!-- Flash messages -->
-      {% with messages = get_flashed_messages(with_categories=true) %}
-        {% if messages %}
-          <div class="alerts">
-            {% for category, message in messages %}
-              <div class="alert alert-{{ category }}">
-                {% if category == 'warning' %}⚠️{% elif category == 'error' %}❌{% elif category == 'success' %}✅{% else %}ℹ️{% endif %}
-                {{ message }}
-              </div>
-            {% endfor %}
-          </div>
-        {% endif %}
-      {% endwith %}
-
-      <!-- Page header -->
-      <div class="section-header">
-        <div>
-          <h1>Raise a Complaint</h1>
-          <p style="margin-top:.25rem;">Describe your issue below. We'll pass it to the hostel administration.</p>
-        </div>
-        <a href="{{ url_for('complaints') }}" class="btn btn-outline btn-sm">← My Complaints</a>
-      </div>
-
-      <!-- ===== Complaint Form ===== -->
-      <div class="card" style="max-width:640px;">
-        <form method="POST" action="{{ url_for('raise_complaint') }}" id="complaintForm" novalidate>
-
-          <div class="form-group">
-            <label for="title">Complaint Title <span style="color:#e74c3c;">*</span></label>
-            <input
-              type="text"
-              id="title"
-              name="title"
-              class="form-control"
-              placeholder="e.g., Water leakage in Room 204"
-              maxlength="120"
-              required
-            />
-          </div>
-
-          <div class="form-group">
-            <label for="category">Category <span style="color:#e74c3c;">*</span></label>
-            <select id="category" name="category" class="form-control" required>
-              <option value="" disabled selected>— Select a category —</option>
-              <option value="Maintenance">🔧 Maintenance</option>
-              <option value="Mess / Food">🍽️ Mess / Food</option>
-              <option value="Cleanliness">🧹 Cleanliness</option>
-              <option value="Security">🔒 Security</option>
-              <option value="Internet / WiFi">📶 Internet / WiFi</option>
-              <option value="Electricity">💡 Electricity</option>
-              <option value="Water Supply">💧 Water Supply</option>
-              <option value="Other">📌 Other</option>
-            </select>
-          </div>
-
-          <div class="form-group">
-            <label for="description">Description <span style="color:#e74c3c;">*</span></label>
-            <textarea
-              id="description"
-              name="description"
-              class="form-control"
-              placeholder="Provide details about the issue — location, time, impact, etc."
-              maxlength="1000"
-              required
-            ></textarea>
-          </div>
-
-          <button type="submit" class="btn btn-primary">📤 Submit Complaint</button>
-
-        </form>
-      </div>
-
-      <!-- DynamoDB note -->
-      <p style="margin-top:1rem; font-size:.8rem; color:var(--text-muted);">
-        ℹ️ Submissions are saved to DynamoDB (<code>campus-hostel-complaints</code>). Connect the database to enable persistence.
-      </p>
-
-    </div>
-  </main>
-
-  <footer class="footer">
-    <p>© 2026 Campus Hostel Companion</p>
-  </footer>
-
+<div class="page-header" style="margin-bottom: 1.5rem;">
+  <h1>Raise a complaint</h1>
+  <p>Describe the issue and it stays on record until it's resolved.</p>
 </div>
-<script src="{{ url_for('static', filename='js/app.js') }}"></script>
-</body>
-</html>
+
+<div class="form-card">
+  <form method="POST" action="{{ url_for('raise_complaint') }}">
+    <!-- Title -->
+    <div class="form-group">
+      <label for="title">Title</label>
+      <input
+        type="text"
+        id="title"
+        name="title"
+        class="form-input"
+        placeholder="Ceiling fan in room 204 isn't working"
+        maxlength="120"
+        required
+        autofocus
+      />
+    </div>
+
+    <!-- Category -->
+    <div class="form-group">
+      <label for="category">Category</label>
+      <select id="category" name="category" class="form-select" required>
+        <option value="" disabled selected>Select a category</option>
+        <option value="Electrical">Electrical</option>
+        <option value="Plumbing">Plumbing</option>
+        <option value="Cleaning">Cleaning</option>
+        <option value="Other">Other</option>
+      </select>
+    </div>
+
+    <!-- Description with character counter -->
+    <div class="form-group">
+      <div class="form-group-header">
+        <label for="description">Description</label>
+        <span class="char-counter" id="descCounter">0/2000</span>
+      </div>
+      <textarea
+        id="description"
+        name="description"
+        class="form-textarea"
+        placeholder="What's wrong, where, and since when? The more detail, the faster it gets fixed."
+        maxlength="2000"
+        required
+        oninput="document.getElementById('descCounter').textContent = this.value.length + '/2000'"
+      ></textarea>
+    </div>
+
+    <!-- Two buttons bottom right: Cancel (plain text/outline) and Submit complaint (black, filled) -->
+    <div class="form-actions">
+      <a href="{{ url_for('dashboard') }}" class="btn-link">Cancel</a>
+      <button type="submit" class="btn-black">
+        <span>Submit complaint</span>
+      </button>
+    </div>
+  </form>
+</div>
+{% endblock %}

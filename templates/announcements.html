@@ -1,92 +1,74 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <meta name="description" content="Announcements — hostel-wide notices from administration." />
-  <title>Announcements | Campus Hostel Companion</title>
-  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}" />
-</head>
-<body>
-<div class="page-wrapper">
+{% extends "base.html" %}
 
-  <!-- ===== Navbar ===== -->
-  <nav class="navbar">
-    <div class="container navbar__inner">
-      <a href="{{ url_for('dashboard') }}" class="navbar__brand">
-        <span class="brand-icon">🏠</span>
-        Campus Hostel Companion
-      </a>
-      <div class="navbar__links">
-        <a href="{{ url_for('dashboard') }}">🍽️ Menu</a>
-        <a href="{{ url_for('complaints') }}">📋 Complaints</a>
-        <a href="{{ url_for('announcements') }}" class="active">📢 Notices</a>
-        <a href="{{ url_for('logout') }}" class="btn-logout">Log Out</a>
-      </div>
+{% block title %}Announcements | Campus Hostel Companion{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div class="page-header-row">
+    <div>
+      <h1>Announcements</h1>
+      <p>The hostel notice board — anything posted here is visible to every resident.</p>
     </div>
-  </nav>
-
-  <main>
-    <div class="container">
-
-      <!-- Flash messages -->
-      {% with messages = get_flashed_messages(with_categories=true) %}
-        {% if messages %}
-          <div class="alerts">
-            {% for category, message in messages %}
-              <div class="alert alert-{{ category }}">
-                {% if category == 'warning' %}⚠️{% elif category == 'error' %}❌{% elif category == 'success' %}✅{% else %}ℹ️{% endif %}
-                {{ message }}
-              </div>
-            {% endfor %}
-          </div>
-        {% endif %}
-      {% endwith %}
-
-      <!-- Page header -->
-      <div class="section-header">
-        <div>
-          <h1>Hostel Announcements</h1>
-          <p style="margin-top:.25rem;">Important notices from hostel administration.</p>
-        </div>
-      </div>
-
-      <!-- ===== Announcements list ===== -->
-      {% if announcements %}
-        <div style="display:flex; flex-direction:column; gap:1rem;">
-          {% for a in announcements %}
-            <div class="announcement-card">
-              <div class="announcement-card__meta">
-                <span>📅 {{ a.get('created_at', '') }}</span>
-                {% if a.get('posted_by') %}
-                  <span>👤 {{ a.get('posted_by') }}</span>
-                {% endif %}
-              </div>
-              <div class="announcement-card__title">📢 {{ a.get('title', '') }}</div>
-              <div class="announcement-card__body">{{ a.get('body', '') }}</div>
-            </div>
-          {% endfor %}
-        </div>
-
-      {% else %}
-        <div class="empty-state">
-          <div class="empty-icon">📭</div>
-          <h3>No announcements yet</h3>
-          <p>
-            Connect DynamoDB (<code>campus-hostel-announcements</code>) to load notices,
-            or wait for administration to post updates.
-          </p>
-        </div>
-      {% endif %}
-
-    </div>
-  </main>
-
-  <footer class="footer">
-    <p>© 2026 Campus Hostel Companion</p>
-  </footer>
-
+    <!-- "Post a notice" button (outline style, pencil icon) on top right -->
+    <button type="button" class="btn-outline btn-outline-sm" onclick="alert('Notice board posting is managed by hostel wardens and student reps.');">
+      <svg class="icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#111111" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"></path>
+      </svg>
+      <span>Post a notice</span>
+    </button>
+  </div>
 </div>
-<script src="{{ url_for('static', filename='js/app.js') }}"></script>
-</body>
-</html>
+
+<!-- Card — "Latest updates" header with count on the right -->
+<div class="card">
+  <div class="card-header-row">
+    <div class="card__title">Latest updates</div>
+    <div class="card-tag">{{ announcements|length if announcements else 3 }} notices</div>
+  </div>
+
+  <div class="menu-list">
+    {% if announcements and announcements|length > 0 %}
+      {% for a in announcements %}
+        <div class="announcement-item">
+          <div class="announcement-title">{{ a.get('title', '') }}</div>
+          <div class="announcement-date">
+            {{ a.get('created_at', '') }}
+            {% if a.get('posted_by') %}
+              &bull; <span style="color: var(--text-main); font-weight: 500;">{{ a.get('posted_by') }}</span>
+            {% endif %}
+          </div>
+          <div class="announcement-desc">{{ a.get('body', '') }}</div>
+        </div>
+        {% if not loop.last %}
+          <hr class="announcement-divider" />
+        {% endif %}
+      {% endfor %}
+    {% else %}
+      <!-- Example demo entries -->
+      <div class="announcement-item">
+        <div class="announcement-title">Water tank cleaning — Saturday 10 AM</div>
+        <div class="announcement-date">Saturday, 19 September &bull; 9:00 AM</div>
+        <div class="announcement-desc">Water supply will be paused from 10:00 AM to 12:30 PM on Saturday while the overhead tanks are cleaned. Please store water in advance.</div>
+      </div>
+      <hr class="announcement-divider" />
+
+      <div class="announcement-item">
+        <div class="announcement-title">Mess timings updated</div>
+        <div class="announcement-date">Friday, 18 September &bull; 4:30 PM</div>
+        <div class="announcement-desc">Breakfast is now served 7:30-9:30 AM and dinner 7:30-9:30 PM. The lunch window stays 12:30-2:30 PM.</div>
+      </div>
+      <hr class="announcement-divider" />
+
+      <div class="announcement-item">
+        <div class="announcement-title">Wi-Fi maintenance tonight</div>
+        <div class="announcement-date">Thursday, 17 September &bull; 8:00 PM</div>
+        <div class="announcement-desc">The hostel network will be down from 1:00 AM to 3:00 AM tonight for router maintenance.</div>
+      </div>
+    {% endif %}
+  </div>
+
+  <div class="card-footer-note">
+    Demo notices appear for illustration — everything students post here is shown to the whole hostel.
+  </div>
+</div>
+{% endblock %}

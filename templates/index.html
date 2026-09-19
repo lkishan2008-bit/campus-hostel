@@ -1,196 +1,63 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <meta name="description" content="Campus Hostel Companion — your one-stop portal for mess menus, complaints, and hostel announcements." />
-  <title>Campus Hostel Companion</title>
-  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}" />
-</head>
+{% extends "base.html" %}
 
-<!-- Auto-open modal if Flask sends the signal -->
-<body
-  {% if show_login %}data-open-modal="loginModal"{% endif %}
-  {% if show_signup %}data-open-modal="signupModal"{% endif %}
->
+{% block title %}Campus Hostel Companion — The essential companion for hostel life.{% endblock %}
 
-<div class="page-wrapper">
+{% block content %}
+<section class="hero">
+  <div class="hero-label">FOR RESIDENTS OF CAMPUS HOUSING</div>
+  <h1 class="hero-headline">The essential companion<br>for hostel life.</h1>
+  <p class="hero-subheading">
+    One quiet place for the things your hostel runs on — check today's mess menu, raise and track complaints, and stay current with hostel-wide announcements.
+  </p>
 
-  <!-- ===== Minimal top-bar for landing ===== -->
-  <nav class="navbar">
-    <div class="container navbar__inner">
-      <span class="navbar__brand">
-        <span class="brand-icon">🏠</span>
-        Campus Hostel Companion
-      </span>
-      <div class="navbar__links">
-        <a href="#" id="navLogin" class="btn btn-outline btn-sm" onclick="openModal('loginModal'); return false;">Log In</a>
-        <a href="#" id="navSignup" class="btn btn-primary btn-sm" onclick="openModal('signupModal'); return false;">Sign Up</a>
+  <div class="hero-cta">
+    <a href="{{ url_for('login') }}" class="btn-black">
+      <span>Get started &rarr;</span>
+    </a>
+    <span class="hero-note">Free for residents — your email is all you need.</span>
+  </div>
+</section>
+
+<hr class="divider" />
+
+<section class="feature-section">
+  <div class="feature-grid">
+    <!-- Feature 1: Crossed Utensils -->
+    <div class="feature-item">
+      <div class="feature-icon-box" aria-hidden="true">
+        <svg class="icon" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#111111" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M18 2v6a3 3 0 0 1-3 3 3 3 0 0 1-3-3V2"></path>
+          <path d="M15 11v11"></path>
+          <path d="M5 2v8a2 2 0 0 0 2 2h0a2 2 0 0 0 2-2V2"></path>
+          <path d="M7 12v10"></path>
+        </svg>
       </div>
+      <h3>Today's menu, every morning</h3>
+      <p>See what the mess is serving before you leave your room.</p>
     </div>
-  </nav>
 
-  <main>
-    <div class="container">
-
-      <!-- Flash messages -->
-      {% with messages = get_flashed_messages(with_categories=true) %}
-        {% if messages %}
-          <div class="alerts" style="margin-top:1rem;">
-            {% for category, message in messages %}
-              <div class="alert alert-{{ category }}">
-                {% if category == 'warning' %}⚠️{% elif category == 'error' %}❌{% elif category == 'success' %}✅{% else %}ℹ️{% endif %}
-                {{ message }}
-              </div>
-            {% endfor %}
-          </div>
-        {% endif %}
-      {% endwith %}
-
-      <!-- ===== Hero ===== -->
-      <section class="hero">
-        <span class="hero__badge">Hostel Management Made Simple</span>
-        <h1>Campus Hostel Companion</h1>
-        <p class="hero__tagline">
-          Check today's mess menu, raise complaints, and stay updated with hostel announcements — all in one place.
-        </p>
-        <div class="hero__cta">
-          <a href="#" class="btn btn-outline" onclick="openModal('loginModal'); return false;">Log In</a>
-          <a href="#" class="btn btn-primary" onclick="openModal('signupModal'); return false;">Sign Up</a>
-        </div>
-      </section>
-
-      <!-- ===== Feature Highlights ===== -->
-      <section class="features">
-        <div class="features__grid">
-          <div class="feature-card">
-            <div class="feature-icon">🍽️</div>
-            <h3>Today's Mess Menu</h3>
-            <p>See what's being served at breakfast, lunch, snacks, and dinner — every day.</p>
-          </div>
-          <div class="feature-card">
-            <div class="feature-icon">📋</div>
-            <h3>Raise Complaints</h3>
-            <p>Submit hostel complaints by category and track their status in real time.</p>
-          </div>
-          <div class="feature-card">
-            <div class="feature-icon">📢</div>
-            <h3>Announcements</h3>
-            <p>Never miss important notices from hostel administration.</p>
-          </div>
-        </div>
-      </section>
-
+    <!-- Feature 2: Wrench -->
+    <div class="feature-item">
+      <div class="feature-icon-box" aria-hidden="true">
+        <svg class="icon" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#111111" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"></path>
+        </svg>
+      </div>
+      <h3>Complaints, properly logged</h3>
+      <p>Report an issue once and follow it from pending to resolved.</p>
     </div>
-  </main>
 
-  <footer class="footer">
-    <p>© 2026 Campus Hostel Companion &nbsp;|&nbsp; Built for students, by students.</p>
-  </footer>
-
-</div><!-- .page-wrapper -->
-
-
-<!-- =====================================================================
-     LOGIN MODAL
-     ===================================================================== -->
-<div class="modal-overlay" id="loginModal" role="dialog" aria-modal="true" aria-labelledby="loginTitle">
-  <div class="modal">
-    <button class="modal__close" onclick="closeModal('loginModal')" aria-label="Close">✕</button>
-    <h2 id="loginTitle">Welcome Back</h2>
-
-    <form method="POST" action="{{ url_for('login') }}" id="loginForm" novalidate>
-      <div class="form-group">
-        <label for="login_username">Username</label>
-        <input
-          type="text"
-          id="login_username"
-          name="username"
-          class="form-control"
-          placeholder="Your username"
-          autocomplete="username"
-          required
-        />
+    <!-- Feature 3: Megaphone -->
+    <div class="feature-item">
+      <div class="feature-icon-box" aria-hidden="true">
+        <svg class="icon" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#111111" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+          <path d="m3 11 18-5v12L3 14v-3z"></path>
+          <path d="M11.6 16.8a3 3 0 1 1-5.8-1.6"></path>
+        </svg>
       </div>
-      <div class="form-group">
-        <label for="login_password">Password</label>
-        <input
-          type="password"
-          id="login_password"
-          name="password"
-          class="form-control"
-          placeholder="Your password"
-          autocomplete="current-password"
-          required
-        />
-      </div>
-      <button type="submit" class="btn btn-primary btn-full">Log In</button>
-    </form>
-
-    <div class="modal__switch">
-      Don't have an account?
-      <a href="#" class="link-signup" onclick="closeModal('loginModal'); openModal('signupModal'); return false;">Sign Up</a>
+      <h3>Notices that reach you</h3>
+      <p>Water cuts, menu changes, maintenance windows — posted where you will actually see them.</p>
     </div>
   </div>
-</div>
-
-
-<!-- =====================================================================
-     SIGN-UP MODAL
-     ===================================================================== -->
-<div class="modal-overlay" id="signupModal" role="dialog" aria-modal="true" aria-labelledby="signupTitle">
-  <div class="modal">
-    <button class="modal__close" onclick="closeModal('signupModal')" aria-label="Close">✕</button>
-    <h2 id="signupTitle">Create Account</h2>
-
-    <form method="POST" action="{{ url_for('signup') }}" id="signupForm" novalidate>
-      <div class="form-group">
-        <label for="signup_username">Username</label>
-        <input
-          type="text"
-          id="signup_username"
-          name="username"
-          class="form-control"
-          placeholder="Choose a username"
-          autocomplete="username"
-          required
-        />
-      </div>
-      <div class="form-group">
-        <label for="signup_email">Email Address</label>
-        <input
-          type="email"
-          id="signup_email"
-          name="email"
-          class="form-control"
-          placeholder="student@college.edu"
-          autocomplete="email"
-          required
-        />
-      </div>
-      <div class="form-group">
-        <label for="signup_password">Password</label>
-        <input
-          type="password"
-          id="signup_password"
-          name="password"
-          class="form-control"
-          placeholder="Minimum 8 characters"
-          autocomplete="new-password"
-          required
-        />
-      </div>
-      <button type="submit" class="btn btn-primary btn-full">Create Account</button>
-    </form>
-
-    <div class="modal__switch">
-      Already have an account?
-      <a href="#" onclick="closeModal('signupModal'); openModal('loginModal'); return false;">Log In</a>
-    </div>
-  </div>
-</div>
-
-
-<script src="{{ url_for('static', filename='js/app.js') }}"></script>
-</body>
-</html>
+</section>
+{% endblock %}

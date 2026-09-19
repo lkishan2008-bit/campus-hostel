@@ -1,127 +1,140 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <meta name="description" content="Dashboard — Today's mess menu for hostel students." />
-  <title>Dashboard | Campus Hostel Companion</title>
-  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}" />
-</head>
-<body>
-<div class="page-wrapper">
+{% extends "base.html" %}
 
-  <!-- ===== Navbar ===== -->
-  <nav class="navbar">
-    <div class="container navbar__inner">
-      <a href="{{ url_for('dashboard') }}" class="navbar__brand">
-        <span class="brand-icon">🏠</span>
-        Campus Hostel Companion
-      </a>
-      <div class="navbar__links">
-        <a href="{{ url_for('dashboard') }}" class="active">🍽️ Menu</a>
-        <a href="{{ url_for('complaints') }}">📋 Complaints</a>
-        <a href="{{ url_for('announcements') }}">📢 Notices</a>
-        <a href="{{ url_for('logout') }}" class="btn-logout">Log Out</a>
-      </div>
-    </div>
-  </nav>
+{% block title %}Dashboard | Campus Hostel Companion{% endblock %}
 
-  <main>
-    <div class="container">
-
-      <!-- Flash messages -->
-      {% with messages = get_flashed_messages(with_categories=true) %}
-        {% if messages %}
-          <div class="alerts">
-            {% for category, message in messages %}
-              <div class="alert alert-{{ category }}">
-                {% if category == 'warning' %}⚠️{% elif category == 'error' %}❌{% elif category == 'success' %}✅{% else %}ℹ️{% endif %}
-                {{ message }}
-              </div>
-            {% endfor %}
-          </div>
-        {% endif %}
-      {% endwith %}
-
-      <!-- Page header -->
-      <div class="section-header">
-        <div>
-          <h1>Today's Mess Menu</h1>
-          <p style="margin-top:.25rem;">
-            Hello, <strong>{{ user.get('username', 'Student') }}</strong>!
-            Here's what's on the menu today.
-          </p>
-        </div>
-        <span style="font-size:.85rem; color:var(--text-muted);">
-          📅 {{ now if now else '' }}
-        </span>
-      </div>
-
-      <!-- ===== Mess menu cards ===== -->
-      {% if menu %}
-        <div class="menu-grid">
-
-          <div class="menu-card">
-            <div class="menu-card__header">☀️ Breakfast</div>
-            <div class="menu-card__body">
-              {{ menu.get('breakfast', 'Not available') }}
-            </div>
-          </div>
-
-          <div class="menu-card">
-            <div class="menu-card__header">🍛 Lunch</div>
-            <div class="menu-card__body">
-              {{ menu.get('lunch', 'Not available') }}
-            </div>
-          </div>
-
-          <div class="menu-card">
-            <div class="menu-card__header">🫖 Snacks</div>
-            <div class="menu-card__body">
-              {{ menu.get('snacks', 'Not available') }}
-            </div>
-          </div>
-
-          <div class="menu-card">
-            <div class="menu-card__header">🌙 Dinner</div>
-            <div class="menu-card__body">
-              {{ menu.get('dinner', 'Not available') }}
-            </div>
-          </div>
-
-        </div>
-
-        <!-- DynamoDB note shown when using placeholder data -->
-        <p style="margin-top:1.25rem; font-size:.82rem; color:var(--text-muted); text-align:center;">
-          ℹ️ Menu shown is a placeholder. Connect DynamoDB (<code>campus-hostel-mess-menu</code> table) to display live data.
-        </p>
-
-      {% else %}
-        <div class="empty-state">
-          <div class="empty-icon">🍽️</div>
-          <h3>No menu available today</h3>
-          <p>Connect the DynamoDB mess-menu table to display today's menu.</p>
-        </div>
-      {% endif %}
-
-      <!-- Quick links -->
-      <div class="card" style="margin-top:2rem;">
-        <h3 style="margin-bottom:1rem;">Quick Actions</h3>
-        <div style="display:flex; gap:1rem; flex-wrap:wrap;">
-          <a href="{{ url_for('raise_complaint') }}" class="btn btn-primary btn-sm">📋 Raise a Complaint</a>
-          <a href="{{ url_for('complaints') }}" class="btn btn-outline btn-sm">🗂️ My Complaints</a>
-          <a href="{{ url_for('announcements') }}" class="btn btn-outline btn-sm">📢 Announcements</a>
-        </div>
-      </div>
-
-    </div>
-  </main>
-
-  <footer class="footer">
-    <p>© 2026 Campus Hostel Companion</p>
-  </footer>
-
+{% block content %}
+<div class="page-header">
+  <h1>Welcome back</h1>
+  <p>{{ now }}</p>
 </div>
-<script src="{{ url_for('static', filename='js/app.js') }}"></script>
-</body>
-</html>
+
+<div class="dashboard-grid">
+  <!-- LEFT CARD: Today's mess menu -->
+  <div class="card">
+    <div class="card-header-row">
+      <div class="card__title">Today's mess menu</div>
+      <div class="card-tag">{{ menu.get('day', 'Saturday') }}</div>
+    </div>
+
+    <div class="menu-list">
+      <!-- Breakfast -->
+      <div class="menu-row">
+        <span class="menu-meal">Breakfast</span>
+        <span class="menu-time">7:30 – 9:30 AM</span>
+        <span class="menu-items">{{ menu.get('breakfast') or 'Bread butter, omelette, tea' }}</span>
+      </div>
+
+      <!-- Lunch -->
+      <div class="menu-row">
+        <span class="menu-meal">Lunch</span>
+        <span class="menu-time">12:30 – 2:30 PM</span>
+        <span class="menu-items">{{ menu.get('lunch') or 'Sambar, rice, poriyal, roti' }}</span>
+      </div>
+
+      <!-- Dinner -->
+      <div class="menu-row">
+        <span class="menu-meal">Dinner</span>
+        <span class="menu-time">7:30 – 9:30 PM</span>
+        <span class="menu-items">{{ menu.get('dinner') or 'Chicken curry / paneer curry, roti, rice' }}</span>
+      </div>
+    </div>
+
+    <div class="card-footer-note">
+      Demo menu — updated each day for now.
+    </div>
+  </div>
+
+  <!-- RIGHT CARD: Quick links -->
+  <div class="card">
+    <div class="card-header-row">
+      <div class="card__title">Quick links</div>
+    </div>
+
+    <div class="quick-links">
+      <!-- Raise a complaint -->
+      <a href="{{ url_for('raise_complaint') }}" class="quick-link-row">
+        <div class="quick-link-left">
+          <svg class="icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#111111" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"></path>
+          </svg>
+          <div>
+            <div class="quick-link-title">Raise a Complaint</div>
+            <div class="quick-link-desc">Broken fan, water issue, anything.</div>
+          </div>
+        </div>
+        <span class="quick-link-arrow">&rarr;</span>
+      </a>
+
+      <!-- My complaints -->
+      <a href="{{ url_for('complaints') }}" class="quick-link-row">
+        <div class="quick-link-left">
+          <svg class="icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#111111" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <rect width="8" height="4" x="8" y="2" rx="1" ry="1"></rect>
+            <path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"></path>
+          </svg>
+          <div>
+            <div class="quick-link-title">My Complaints</div>
+            <div class="quick-link-desc">Track what you've reported.</div>
+          </div>
+        </div>
+        <span class="quick-link-arrow">&rarr;</span>
+      </a>
+
+      <!-- Announcements -->
+      <a href="{{ url_for('announcements') }}" class="quick-link-row">
+        <div class="quick-link-left">
+          <svg class="icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#111111" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="m3 11 18-5v12L3 14v-3z"></path>
+            <path d="M11.6 16.8a3 3 0 1 1-5.8-1.6"></path>
+          </svg>
+          <div>
+            <div class="quick-link-title">Announcements</div>
+            <div class="quick-link-desc">Hostel-wide updates.</div>
+          </div>
+        </div>
+        <span class="quick-link-arrow">&rarr;</span>
+      </a>
+    </div>
+  </div>
+</div>
+
+<!-- BELOW BOTH CARDS: Your complaints section -->
+<div class="card">
+  <div class="stats-header-row">
+    <div class="card__title">Your complaints</div>
+    <a href="{{ url_for('complaints') }}" style="font-size: 0.8125rem; font-weight: 500;">View all &rarr;</a>
+  </div>
+
+  <div class="stats-grid">
+    <div class="stat-box">
+      <div class="stat-content">
+        <span>{{ pending_count|default(0) }}</span>
+        <span class="stat-label"> / Pending</span>
+      </div>
+    </div>
+
+    <div class="stat-box">
+      <div class="stat-content">
+        <span>{{ resolved_count|default(0) }}</span>
+        <span class="stat-label"> / Resolved</span>
+      </div>
+    </div>
+
+    <div class="stat-box">
+      <div class="stat-content">
+        <span>{{ total_count|default(0) }}</span>
+        <span class="stat-label"> / Total</span>
+      </div>
+    </div>
+  </div>
+
+  {% if total_count == 0 %}
+    <div class="empty-state" style="margin-top: 1rem;">
+      <p>You haven't raised any complaints yet.</p>
+      <a href="{{ url_for('raise_complaint') }}" class="btn-black btn-black-sm">
+        Raise your first complaint
+      </a>
+    </div>
+  {% endif %}
+</div>
+{% endblock %}

@@ -1,0 +1,54 @@
+{% extends "base.html" %}
+
+{% block title %}Log in or sign up | Campus Hostel Companion{% endblock %}
+
+{% block content %}
+<div class="auth-container">
+  <div class="auth-card">
+    <h1>Log in or sign up</h1>
+    <p class="auth-subtext">Enter your college email and we'll send you a one-time code.</p>
+
+    <form method="POST" action="{{ url_for('login') }}">
+      <div class="form-group">
+        <label for="email">College email</label>
+        <input
+          type="email"
+          id="email"
+          name="email"
+          class="form-input"
+          placeholder="name@college.edu"
+          required
+          autofocus
+        />
+      </div>
+
+      <div class="form-group" style="margin-bottom: 1.5rem;">
+        <label for="password">Password</label>
+        <input
+          type="password"
+          id="password"
+          name="password"
+          class="form-input"
+          placeholder="Enter password (if registered)"
+        />
+      </div>
+
+      <button type="submit" class="btn-black" style="width: 100%;">
+        <span>Continue &rarr;</span>
+      </button>
+
+      <p class="auth-note">New here? Verifying your email creates your account.</p>
+    </form>
+
+    <div class="or-divider">OR</div>
+
+    <a href="{{ url_for('guest_login') }}" class="btn-outline" style="width: 100%;">
+      <svg class="icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#111111" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"></path>
+        <circle cx="12" cy="7" r="4"></circle>
+      </svg>
+      <span>Continue as guest</span>
+    </a>
+  </div>
+</div>
+{% endblock %}

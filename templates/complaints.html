@@ -1,109 +1,97 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <meta name="description" content="My Complaints — track the status of your hostel complaints." />
-  <title>My Complaints | Campus Hostel Companion</title>
-  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}" />
-</head>
-<body>
-<div class="page-wrapper">
+{% extends "base.html" %}
 
-  <!-- ===== Navbar ===== -->
-  <nav class="navbar">
-    <div class="container navbar__inner">
-      <a href="{{ url_for('dashboard') }}" class="navbar__brand">
-        <span class="brand-icon">🏠</span>
-        Campus Hostel Companion
-      </a>
-      <div class="navbar__links">
-        <a href="{{ url_for('dashboard') }}">🍽️ Menu</a>
-        <a href="{{ url_for('complaints') }}" class="active">📋 Complaints</a>
-        <a href="{{ url_for('announcements') }}">📢 Notices</a>
-        <a href="{{ url_for('logout') }}" class="btn-logout">Log Out</a>
-      </div>
-    </div>
-  </nav>
+{% block title %}My complaints | Campus Hostel Companion{% endblock %}
 
-  <main>
-    <div class="container">
-
-      <!-- Flash messages -->
-      {% with messages = get_flashed_messages(with_categories=true) %}
-        {% if messages %}
-          <div class="alerts">
-            {% for category, message in messages %}
-              <div class="alert alert-{{ category }}">
-                {% if category == 'warning' %}⚠️{% elif category == 'error' %}❌{% elif category == 'success' %}✅{% else %}ℹ️{% endif %}
-                {{ message }}
-              </div>
-            {% endfor %}
-          </div>
-        {% endif %}
-      {% endwith %}
-
-      <!-- Section header -->
-      <div class="section-header">
-        <div>
-          <h1>My Complaints</h1>
-          <p style="margin-top:.25rem;">View the status of all complaints you have raised.</p>
-        </div>
-        <a href="{{ url_for('raise_complaint') }}" class="btn btn-primary btn-sm">+ Raise New</a>
-      </div>
-
-      <!-- ===== Complaints list ===== -->
-      {% if complaints %}
-        <div style="display:flex; flex-direction:column; gap:1rem;">
-          {% for c in complaints %}
-            <div class="complaint-card">
-              <div class="complaint-card__meta">
-                <span>🗂️ {{ c.get('category', 'General') }}</span>
-                <span>📅 {{ c.get('created_at', '') }}</span>
-                <!-- Status badge -->
-                {% set status = c.get('status', 'Pending') %}
-                {% if status == 'Pending' %}
-                  <span class="badge badge-open">Pending</span>
-                {% elif status == 'Open' %}
-                  <span class="badge badge-open">Open</span>
-                {% elif status == 'In Progress' %}
-                  <span class="badge badge-inprogress">In Progress</span>
-                {% elif status == 'Resolved' %}
-                  <span class="badge badge-resolved">Resolved</span>
-                {% else %}
-                  <span class="badge badge-open">{{ status }}</span>
-                {% endif %}
-              </div>
-              <div class="complaint-card__title">{{ c.get('title', '') }}</div>
-              <div class="complaint-card__desc">{{ c.get('description', '') }}</div>
-            </div>
-          {% endfor %}
-        </div>
-
-      {% else %}
-        <div class="empty-state">
-          <div class="empty-icon">📭</div>
-          <h3>No complaints yet</h3>
-          <p>
-            {% if not complaints is defined or complaints|length == 0 %}
-              Connect DynamoDB (<code>campus-hostel-complaints</code>) to load your complaint history,
-              or raise your first complaint.
-            {% endif %}
-          </p>
-          <a href="{{ url_for('raise_complaint') }}" class="btn btn-primary btn-sm" style="margin-top:1.2rem;">
-            + Raise a Complaint
-          </a>
-        </div>
-      {% endif %}
-
-    </div>
-  </main>
-
-  <footer class="footer">
-    <p>© 2026 Campus Hostel Companion</p>
-  </footer>
-
+{% block content %}
+<div class="page-header">
+  <h1>My complaints</h1>
+  <p>Everything you've raised, newest first.</p>
 </div>
-<script src="{{ url_for('static', filename='js/app.js') }}"></script>
-</body>
-</html>
+
+<!-- Filter tabs: All | Pending | Resolved (pill-style, first active) -->
+<div class="filter-tabs">
+  <button type="button" class="filter-tab active" onclick="filterComplaints('all', this)">All</button>
+  <button type="button" class="filter-tab" onclick="filterComplaints('pending', this)">Pending</button>
+  <button type="button" class="filter-tab" onclick="filterComplaints('resolved', this)">Resolved</button>
+</div>
+
+<!-- Card — "Complaint history" header with count on the right -->
+<div class="card">
+  <div class="card-header-row">
+    <div class="card__title">Complaint history</div>
+    <div class="card-tag" id="complaintsCount">{{ complaints|length if complaints else 0 }} complaints</div>
+  </div>
+
+  {% if complaints and complaints|length > 0 %}
+    <div class="menu-list" id="complaintsList">
+      {% for c in complaints %}
+        <div class="complaint-item" data-status="{{ c.get('status', 'Pending')|lower }}">
+          <div class="complaint-item-top">
+            <span class="complaint-title">{{ c.get('title', '') }}</span>
+            {% set status = c.get('status', 'Pending') %}
+            {% if status|lower == 'resolved' %}
+              <span class="badge badge-resolved">Resolved</span>
+            {% elif status|lower == 'in progress' %}
+              <span class="badge badge-inprogress">In Progress</span>
+            {% else %}
+              <span class="badge badge-pending">{{ status }}</span>
+            {% endif %}
+          </div>
+          <div class="complaint-meta">
+            <span>{{ c.get('category', 'General') }}</span>
+            <span>&bull;</span>
+            <span>{{ c.get('created_at', '') }}</span>
+          </div>
+          {% if c.get('description') %}
+            <div class="complaint-desc">{{ c.get('description') }}</div>
+          {% endif %}
+        </div>
+      {% endfor %}
+    </div>
+  {% else %}
+    <!-- If empty: centered clipboard icon, "You haven't raised any complaints yet.", button "Raise a complaint" -->
+    <div class="empty-state">
+      <div class="empty-state-icon">
+        <svg class="icon" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#111111" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <rect width="8" height="4" x="8" y="2" rx="1" ry="1"></rect>
+          <path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"></path>
+        </svg>
+      </div>
+      <p>You haven't raised any complaints yet.</p>
+      <a href="{{ url_for('raise_complaint') }}" class="btn-black btn-black-sm">
+        Raise a complaint
+      </a>
+    </div>
+  {% endif %}
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function filterComplaints(status, btn) {
+  document.querySelectorAll('.filter-tab').forEach(t => t.classList.remove('active'));
+  btn.classList.add('active');
+  const items = document.querySelectorAll('.complaint-item');
+  let visibleCount = 0;
+  items.forEach(item => {
+    const itemStatus = item.getAttribute('data-status') || '';
+    if (status === 'all') {
+      item.style.display = 'block';
+      visibleCount++;
+    } else if (status === 'pending' && (itemStatus.includes('pending') || itemStatus.includes('open') || itemStatus.includes('progress'))) {
+      item.style.display = 'block';
+      visibleCount++;
+    } else if (status === 'resolved' && itemStatus.includes('resolved')) {
+      item.style.display = 'block';
+      visibleCount++;
+    } else {
+      item.style.display = 'none';
+    }
+  });
+  const countElem = document.getElementById('complaintsCount');
+  if (countElem) {
+    countElem.textContent = visibleCount + ' complaints';
+  }
+}
+</script>
+{% endblock %}

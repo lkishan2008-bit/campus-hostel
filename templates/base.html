@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="description" content="Campus Hostel Companion — The essential companion for hostel life." />
+  <title>{% block title %}Campus Hostel Companion{% endblock %}</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}" />
+  {% block head %}{% endblock %}
+</head>
+<body>
+<div class="page-wrapper">
+
+  <!-- =======================================================================
+       TOP NAVIGATION
+       ======================================================================= -->
+  <nav class="navbar">
+    <div class="container navbar__inner">
+      <!-- Left: small crossed fork/knife icon + Campus Hostel Companion text, bold -->
+      <a href="{% if session.get('user') %}{{ url_for('dashboard') }}{% else %}{{ url_for('index') }}{% endif %}" class="navbar__brand">
+        <svg class="icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#111111" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M18 2v6a3 3 0 0 1-3 3 3 3 0 0 1-3-3V2"></path>
+          <path d="M15 11v11"></path>
+          <path d="M5 2v8a2 2 0 0 0 2 2h0a2 2 0 0 0 2-2V2"></path>
+          <path d="M7 12v10"></path>
+        </svg>
+        <span>Campus Hostel Companion</span>
+      </a>
+
+      {% if session.get('user') %}
+        <!-- On all other pages (logged in): nav tabs Dashboard | Raise a complaint | My complaints | Announcements -->
+        <div class="navbar__tabs">
+          <a href="{{ url_for('dashboard') }}" class="navbar__tab {% if request.endpoint == 'dashboard' %}active{% endif %}">Dashboard</a>
+          <span class="nav-pipe">|</span>
+          <a href="{{ url_for('raise_complaint') }}" class="navbar__tab {% if request.endpoint in ['raise_complaint', 'complaints_new'] %}active{% endif %}">Raise a Complaint</a>
+          <span class="nav-pipe">|</span>
+          <a href="{{ url_for('complaints') }}" class="navbar__tab {% if request.endpoint == 'complaints' %}active{% endif %}">My Complaints</a>
+          <span class="nav-pipe">|</span>
+          <a href="{{ url_for('announcements') }}" class="navbar__tab {% if request.endpoint == 'announcements' %}active{% endif %}">Announcements</a>
+        </div>
+
+        <!-- Pill showing user's name/status, then Sign out with icon -->
+        <div class="navbar__right">
+          <span class="user-status-pill">
+            {{ session.get('user', {}).get('username') or 'guest' }}
+          </span>
+          <a href="{{ url_for('logout') }}" class="signout-link">
+            <span>Sign out</span>
+            <svg class="icon" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#111111" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
+              <polyline points="16 17 21 12 16 7"></polyline>
+              <line x1="21" y1="12" x2="9" y2="12"></line>
+            </svg>
+          </a>
+        </div>
+      {% else %}
+        <!-- On landing page (logged out): just "Sign in" link on the right -->
+        <div class="navbar__right">
+          <a href="{{ url_for('login') }}" class="signin-link">Sign in</a>
+        </div>
+      {% endif %}
+    </div>
+  </nav>
+
+  <!-- =======================================================================
+       MAIN CONTENT CONTAINER
+       ======================================================================= -->
+  <main>
+    <div class="container">
+
+      <!-- Flash messages -->
+      {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+          <div class="alerts">
+            {% for category, message in messages %}
+              <div class="alert alert-{{ category }}">
+                {{ message }}
+              </div>
+            {% endfor %}
+          </div>
+        {% endif %}
+      {% endwith %}
+
+      {% block content %}{% endblock %}
+
+    </div>
+  </main>
+
+  <!-- =======================================================================
+       FOOTER
+       ======================================================================= -->
+  <footer class="footer">
+    <div class="container">
+      <p class="footer-text">Campus Hostel Companion — built for residents of campus housing.</p>
+    </div>
+  </footer>
+
+</div>
+
+<script src="{{ url_for('static', filename='js/app.js') }}"></script>
+{% block scripts %}{% endblock %}
+</body>
+</html>

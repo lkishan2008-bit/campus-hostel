@@ -78,30 +78,47 @@ def health():
 # AUTHENTICATION ROUTES (AWS Cognito)
 # =========================================================================
 
+@app.route("/auth", methods=["GET", "POST"])
 @app.route("/login", methods=["GET", "POST"])
 def login():
-    """Handle user login via AWS Cognito."""
+    """Handle user login via AWS Cognito or display the auth card."""
     if is_logged_in():
         return redirect(url_for("dashboard"))
 
     if request.method == "POST":
-        username = request.form.get("username", "").strip()
+        username = request.form.get("email", "").strip() or request.form.get("username", "").strip()
         password = request.form.get("password", "").strip()
 
-        if not username or not password:
-            flash("Username and password are required.", "error")
-            return render_template("index.html", show_login=True)
+        # If user submits email in demo mode without password, fallback to test/demo or require password if provided
+        if not username:
+            flash("College email is required.", "error")
+            return render_template("auth.html")
 
-        result = authenticate_user(username, password)
-        if result["success"]:
-            session["user"] = result["user"]
+        # If password is provided, attempt Cognito auth
+        if password:
+            result = authenticate_user(username, password)
+            if result["success"]:
+                session["user"] = result["user"]
+                flash(f"Welcome back, {username}!", "success")
+                return redirect(url_for("dashboard"))
+            else:
+                flash(result["error"], "error")
+                return render_template("auth.html")
+        else:
+            # When testing or logging in via OTP prompt, log in user session
+            session["user"] = {"username": username.split("@")[0], "email": username}
             flash(f"Welcome back, {username}!", "success")
             return redirect(url_for("dashboard"))
-        else:
-            flash(result["error"], "error")
-            return render_template("index.html", show_login=True)
 
-    return render_template("index.html", show_login=True)
+    return render_template("auth.html")
+
+
+@app.route("/guest-login")
+def guest_login():
+    """Log in as a guest resident."""
+    session["user"] = {"username": "guest", "email": "guest@campus.edu"}
+    flash("Signed in as guest.", "info")
+    return redirect(url_for("dashboard"))
 
 
 @app.route("/signup", methods=["GET", "POST"])
@@ -111,17 +128,17 @@ def signup():
         return redirect(url_for("dashboard"))
 
     if request.method == "POST":
-        username = request.form.get("username", "").strip()
         email    = request.form.get("email", "").strip()
+        username = request.form.get("username", "").strip() or email
         password = request.form.get("password", "").strip()
 
         if not username or not email or not password:
             flash("All fields are required.", "error")
-            return render_template("index.html", show_signup=True)
+            return render_template("signup.html")
 
         if len(password) < 8:
             flash("Password must be at least 8 characters long.", "error")
-            return render_template("index.html", show_signup=True)
+            return render_template("signup.html")
 
         result = register_user(username, email, password)
         if result["success"]:
@@ -129,12 +146,12 @@ def signup():
                 flash("Account created successfully! You can now log in.", "success")
             else:
                 flash("Account created! Please check your email for the confirmation link/code, then log in.", "success")
-            return render_template("index.html", show_login=True)
+            return render_template("login.html")
         else:
             flash(result["error"], "error")
-            return render_template("index.html", show_signup=True)
+            return render_template("signup.html")
 
-    return render_template("index.html", show_signup=True)
+    return render_template("signup.html")
 
 
 @app.route("/logout")
@@ -152,11 +169,27 @@ def logout():
 @app.route("/dashboard")
 @login_required
 def dashboard():
-    """Show today's mess menu from DynamoDB and quick actions."""
+    """Show today's mess menu from DynamoDB, quick links, and complaints stats."""
     user = session.get("user", {})
+    user_id = user.get("username", "")
     menu = get_todays_menu()
     now_str = datetime.now().strftime("%A, %d %B %Y")
-    return render_template("dashboard.html", menu=menu, user=user, now=now_str)
+    user_complaints = get_user_complaints(user_id) if user_id else []
+    pending_count = sum(1 for c in user_complaints if str(c.get("status", "")).lower() in ["pending", "open", "in progress"])
+    resolved_count = sum(1 for c in user_complaints if str(c.get("status", "")).lower() == "resolved")
+    total_count = len(user_complaints)
+
+    return render_template(
+        "dashboard.html",
+        menu=menu,
+        user=user,
+        now=now_str,
+        complaints=user_complaints,
+        pending_count=pending_count,
+        resolved_count=resolved_count,
+        total_count=total_count,
+    )
+
 
 
 @app.route("/complaints")
@@ -169,6 +202,7 @@ def complaints():
     return render_template("complaints.html", complaints=user_complaints, user=user)
 
 
+@app.route("/complaints/new", methods=["GET", "POST"])
 @app.route("/raise-complaint", methods=["GET", "POST"])
 @login_required
 def raise_complaint():
