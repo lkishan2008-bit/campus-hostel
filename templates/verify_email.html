@@ -7,12 +7,25 @@
   <div class="auth-card">
     <h1>Verify your email</h1>
     <p class="auth-subtext">
-      A 6-digit code was sent to <strong>{{ email }}</strong>.<br>
-      Enter it below to activate your account.
+      Enter the 6-digit verification code sent to your email.
     </p>
 
-    <form method="POST" action="{{ url_for('verify_email') }}" novalidate>
-      <input type="hidden" name="action" value="verify" />
+    <form method="POST" action="{{ url_for('verify_email') }}" id="form-verify-email" novalidate>
+      <input type="hidden" name="action" id="form-action" value="verify" />
+
+      <div class="form-group" style="margin-bottom: 1.25rem;">
+        <label for="verify-email">College email</label>
+        <input
+          type="email"
+          id="verify-email"
+          name="email"
+          class="form-input"
+          placeholder="name@college.edu"
+          value="{{ email or '' }}"
+          autocomplete="email"
+          required
+        />
+      </div>
 
       <div class="form-group" style="margin-bottom: 1.5rem;">
         <label for="verify-code">Verification code</label>
@@ -33,23 +46,25 @@
       <button type="submit" class="btn-black" style="width: 100%;" id="btn-verify-email">
         <span>Verify email &rarr;</span>
       </button>
-    </form>
 
-    <div class="or-divider">OR</div>
+      <div class="or-divider">OR</div>
 
-    <form method="POST" action="{{ url_for('verify_email') }}" style="text-align: center;">
-      <input type="hidden" name="action" value="resend" />
-      <button type="submit" class="btn-outline" style="width: 100%;" id="btn-resend-code">
+      <button
+        type="button"
+        class="btn-outline"
+        style="width: 100%;"
+        id="btn-resend-code"
+        onclick="document.getElementById('form-action').value='resend'; document.getElementById('form-verify-email').submit();"
+      >
         Resend code
       </button>
     </form>
 
-    <p class="auth-note" style="margin-top: 1.25rem;">
-      Wrong account?
-      <a href="{{ url_for('login', tab='register') }}" style="color: var(--text-main); font-weight: 500;">Register again</a>
-      &nbsp;or&nbsp;
-      <a href="{{ url_for('login') }}" style="color: var(--text-main); font-weight: 500;">Sign in</a>
-    </p>
+    <div style="text-align: center; margin-top: 1.5rem;">
+      <a href="{{ url_for('login') }}" class="auth-note" style="color: var(--text-main); font-weight: 500; text-decoration: none;">
+        &larr; Back to Sign in
+      </a>
+    </div>
   </div>
 </div>
 {% endblock %}

@@ -138,6 +138,11 @@ def login():
                 flash(f"Welcome back, {display}!", "success")
                 return redirect(url_for("dashboard"))
             else:
+                if result.get("not_confirmed"):
+                    target_email = result.get("email") or username
+                    session["pending_verification_email"] = target_email
+                    flash("Your email is not verified yet. Please enter the verification code sent to your email.", "warning")
+                    return redirect(url_for("verify_email", email=target_email))
                 flash(result["error"], "error")
                 return render_template("auth.html", active_tab="login")
 
@@ -155,12 +160,15 @@ def verify_email():
     if not email:
         email = request.args.get("email", "").strip()
 
-    if not email:
-        flash("No pending verification. Please register first.", "info")
-        return redirect(url_for("login", tab="register"))
-
     if request.method == "POST":
         action = request.form.get("action", "verify")
+        posted_email = request.form.get("email", "").strip()
+        if posted_email:
+            email = posted_email
+
+        if not email:
+            flash("Please enter your college email address.", "error")
+            return render_template("verify_email.html", email="")
 
         if action == "resend":
             result = resend_verification_code(email)
@@ -179,7 +187,7 @@ def verify_email():
         result = confirm_user(email, code)
         if result["success"]:
             session.pop("pending_verification_email", None)
-            flash("Email verified! You can now sign in.", "success")
+            flash("Email verified successfully! You can now sign in.", "success")
             return redirect(url_for("login"))
         else:
             flash(result["error"], "error")

@@ -297,16 +297,29 @@ class CampusHostelCompanionTestCase(unittest.TestCase):
     # ---------------------------------------------------------------------
     # 9. Email Verification Code Flow
     # ---------------------------------------------------------------------
+    def test_verify_email_page_accessible_without_session(self):
+        """Verify email page loads (200 OK) without needing prior session or login."""
+        resp = self.client.get("/verify-email")
+        self.assertEqual(resp.status_code, 200)
+        self.assertIn(b"Verify your email", resp.data)
+        self.assertIn(b"Verification code", resp.data)
+        self.assertIn(b"Resend code", resp.data)
+
+    def test_signin_page_has_verify_link(self):
+        """The Sign in page visibly includes a link to /verify-email."""
+        resp = self.client.get("/auth")
+        self.assertEqual(resp.status_code, 200)
+        self.assertIn(b"Verify your email", resp.data)
+        self.assertIn(b"/verify-email", resp.data)
+
     @patch("app.confirm_user")
     def test_verify_email_success(self, mock_confirm):
-        """Valid code confirms the user and redirects to login."""
+        """Valid code confirms the user and redirects to login with success flash."""
         mock_confirm.return_value = {"success": True}
-
-        with self.client.session_transaction() as sess:
-            sess["pending_verification_email"] = "new@campus.edu"
 
         resp = self.client.post("/verify-email", data={
             "action": "verify",
+            "email": "new@campus.edu",
             "code": "123456",
         }, follow_redirects=False)
 
@@ -319,11 +332,9 @@ class CampusHostelCompanionTestCase(unittest.TestCase):
         """Wrong code stays on verify page and shows error."""
         mock_confirm.return_value = {"success": False, "error": "Incorrect verification code. Please try again."}
 
-        with self.client.session_transaction() as sess:
-            sess["pending_verification_email"] = "new@campus.edu"
-
         resp = self.client.post("/verify-email", data={
             "action": "verify",
+            "email": "new@campus.edu",
             "code": "000000",
         }, follow_redirects=True)
 
@@ -335,22 +346,33 @@ class CampusHostelCompanionTestCase(unittest.TestCase):
         """Resend action calls resend_verification_code and stays on verify page."""
         mock_resend.return_value = {"success": True}
 
-        with self.client.session_transaction() as sess:
-            sess["pending_verification_email"] = "new@campus.edu"
-
         resp = self.client.post("/verify-email", data={
             "action": "resend",
+            "email": "new@campus.edu",
         }, follow_redirects=True)
 
         self.assertEqual(resp.status_code, 200)
         mock_resend.assert_called_once_with("new@campus.edu")
         self.assertIn(b"verification code has been sent", resp.data)
 
-    def test_verify_email_no_session_redirects(self):
-        """Accessing /verify-email without a pending email redirects to register."""
-        resp = self.client.get("/verify-email", follow_redirects=False)
+    @patch("app.authenticate_user")
+    def test_unconfirmed_login_redirects_to_verify(self, mock_auth):
+        """Unconfirmed user login attempt redirects to /verify-email with warning message."""
+        mock_auth.return_value = {
+            "success": False,
+            "error": "Your email is not verified yet. Please enter the verification code sent to your email.",
+            "not_confirmed": True,
+            "email": "unverified@campus.edu",
+        }
+
+        resp = self.client.post("/login", data={
+            "username": "unverified@campus.edu",
+            "password": "Password123!",
+        }, follow_redirects=False)
+
         self.assertEqual(resp.status_code, 302)
-        self.assertIn("/login", resp.headers["Location"])
+        self.assertIn("/verify-email", resp.headers["Location"])
+        self.assertIn("unverified@campus.edu", resp.headers["Location"])
 
     # ---------------------------------------------------------------------
     # 10. Weekly Menu Retrieval

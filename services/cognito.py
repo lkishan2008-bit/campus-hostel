@@ -118,22 +118,6 @@ def register_user(username: str, email: str, password: str) -> dict:
         user_confirmed = response.get("UserConfirmed", False)
         user_sub = response.get("UserSub", "")
 
-        # Auto-confirm user so they can immediately log in with their password
-        if user_pool_id and not user_confirmed:
-            try:
-                client.admin_confirm_sign_up(
-                    UserPoolId=user_pool_id,
-                    Username=cognito_username,
-                )
-                client.admin_update_user_attributes(
-                    UserPoolId=user_pool_id,
-                    Username=cognito_username,
-                    UserAttributes=[{"Name": "email_verified", "Value": "true"}],
-                )
-                user_confirmed = True
-            except Exception:
-                pass
-
         return {
             "success": True,
             "user_confirmed": user_confirmed,
@@ -257,26 +241,11 @@ def authenticate_user(username: str, password: str) -> dict:
         error_code = e.response.get("Error", {}).get("Code", "")
         error_msg = e.response.get("Error", {}).get("Message", str(e))
         if error_code == "UserNotConfirmedException":
-            if user_pool_id:
-                try:
-                    # Auto-confirm and retry auth
-                    client.admin_confirm_sign_up(UserPoolId=user_pool_id, Username=cognito_username)
-                    client.admin_update_user_attributes(
-                        UserPoolId=user_pool_id,
-                        Username=cognito_username,
-                        UserAttributes=[{"Name": "email_verified", "Value": "true"}],
-                    )
-                    retry_response = client.initiate_auth(
-                        AuthFlow="USER_PASSWORD_AUTH",
-                        AuthParameters=auth_params,
-                        ClientId=client_id,
-                    )
-                    return _extract_user_info(retry_response)
-                except Exception:
-                    pass
             return {
                 "success": False,
-                "error": "User account is not yet confirmed. Please verify your email first.",
+                "error": "Your email is not verified yet. Please enter the verification code sent to your email.",
+                "not_confirmed": True,
+                "email": cognito_username,
             }
         elif error_code in ("NotAuthorizedException", "UserNotFoundException"):
             return {
