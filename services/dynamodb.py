@@ -58,10 +58,11 @@ def get_weekly_menu() -> dict:
         db = _get_resource()
         table = db.Table(table_name)
         for day in DAYS_OF_WEEK:
-            response = table.get_item(Key={"day": day})
+            response = table.get_item(Key={"item_id": day})
             item = response.get("Item")
             if item:
                 result[day] = {
+                    "day":       item.get("day", day),
                     "breakfast": item.get("breakfast", ""),
                     "lunch":     item.get("lunch", ""),
                     "dinner":    item.get("dinner", ""),
@@ -89,7 +90,7 @@ def get_todays_menu() -> dict:
     try:
         db = _get_resource()
         table = db.Table(table_name)
-        response = table.get_item(Key={"day": day_name})
+        response = table.get_item(Key={"item_id": day_name})
         item = response.get("Item")
         if item and (item.get("breakfast") or item.get("lunch") or item.get("dinner")):
             return {
@@ -125,6 +126,7 @@ def save_weekly_menu(menu_data: dict) -> tuple:
         for day in DAYS_OF_WEEK:
             day_entry = menu_data.get(day, {})
             table.put_item(Item={
+                "item_id":   day,
                 "day":       day,
                 "breakfast": str(day_entry.get("breakfast", "")).strip(),
                 "lunch":     str(day_entry.get("lunch", "")).strip(),

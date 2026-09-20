@@ -412,10 +412,11 @@ class CampusHostelCompanionTestCase(unittest.TestCase):
     # ---------------------------------------------------------------------
     @patch("services.dynamodb._get_resource")
     def test_get_weekly_menu_from_dynamodb(self, mock_res):
-        """get_weekly_menu returns data from DynamoDB when available."""
+        """get_weekly_menu returns data from DynamoDB when available using item_id key."""
         from services.dynamodb import get_weekly_menu, DAYS_OF_WEEK
 
         monday_item = {
+            "item_id": "Monday",
             "day": "Monday",
             "breakfast": "Oats & Fruit",
             "lunch": "Rice & Dal",
@@ -430,6 +431,7 @@ class CampusHostelCompanionTestCase(unittest.TestCase):
         self.assertIn("Monday", weekly)
         self.assertEqual(weekly["Monday"]["breakfast"], "Oats & Fruit")
         self.assertEqual(weekly["Monday"]["lunch"], "Rice & Dal")
+        mock_table.get_item.assert_any_call(Key={"item_id": "Monday"})
         for day in DAYS_OF_WEEK:
             self.assertIn(day, weekly)
 
@@ -452,7 +454,7 @@ class CampusHostelCompanionTestCase(unittest.TestCase):
     # ---------------------------------------------------------------------
     @patch("services.dynamodb._get_resource")
     def test_save_weekly_menu_success(self, mock_res):
-        """save_weekly_menu writes all 7 days to DynamoDB."""
+        """save_weekly_menu writes all 7 days to DynamoDB with item_id partition key."""
         from services.dynamodb import save_weekly_menu, DAYS_OF_WEEK
 
         mock_table = MagicMock()
@@ -464,6 +466,12 @@ class CampusHostelCompanionTestCase(unittest.TestCase):
         self.assertTrue(ok)
         self.assertEqual(err, "")
         self.assertEqual(mock_table.put_item.call_count, 7)
+
+        saved_items = [call[1]["Item"] for call in mock_table.put_item.call_args_list]
+        for item in saved_items:
+            self.assertIn("item_id", item)
+            self.assertIn("day", item)
+            self.assertEqual(item["item_id"], item["day"])
 
     @patch("services.dynamodb._get_resource")
     def test_save_weekly_menu_dynamodb_error(self, mock_res):
@@ -488,12 +496,13 @@ class CampusHostelCompanionTestCase(unittest.TestCase):
     # ---------------------------------------------------------------------
     @patch("services.dynamodb._get_resource")
     def test_get_todays_menu_from_dynamodb(self, mock_res):
-        """get_todays_menu returns today's entry from DynamoDB weekly table."""
+        """get_todays_menu returns today's entry from DynamoDB weekly table using item_id key."""
         from services.dynamodb import get_todays_menu
         from datetime import datetime
 
         today = datetime.now().strftime("%A")
         day_item = {
+            "item_id": today,
             "day": today,
             "breakfast": "Special Breakfast",
             "lunch": "Special Lunch",
@@ -509,6 +518,7 @@ class CampusHostelCompanionTestCase(unittest.TestCase):
         self.assertEqual(menu["breakfast"], "Special Breakfast")
         self.assertEqual(menu["lunch"], "Special Lunch")
         self.assertEqual(menu["dinner"], "Special Dinner")
+        mock_table.get_item.assert_called_once_with(Key={"item_id": today})
 
     @patch("services.dynamodb._get_resource")
     def test_get_todays_menu_fallback(self, mock_res):
