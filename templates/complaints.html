@@ -28,17 +28,23 @@
         <div class="complaint-item" data-status="{{ c.get('status', 'Pending')|lower }}">
           <div class="complaint-item-top">
             <span class="complaint-title">{{ c.get('title', '') }}</span>
-            {% set status = c.get('status', 'Pending') %}
+            {% set status = c.get('status', 'Submitted') %}
             {% if status|lower == 'resolved' %}
               <span class="badge badge-resolved">Resolved</span>
-            {% elif status|lower == 'in progress' %}
-              <span class="badge badge-inprogress">In Progress</span>
+            {% elif status|lower in ['in progress', 'under review'] %}
+              <span class="badge badge-inprogress">{{ status }}</span>
+            {% elif status|lower == 'rejected' %}
+              <span class="badge" style="background: #FAFAFA; border: 1px solid var(--border); color: var(--text-muted); font-size: 0.72rem; padding: 2px 8px; border-radius: var(--radius-pill);">Rejected</span>
             {% else %}
               <span class="badge badge-pending">{{ status }}</span>
             {% endif %}
           </div>
           <div class="complaint-meta">
             <span>{{ c.get('category', 'General') }}</span>
+            {% if c.get('priority') %}
+              <span>&bull;</span>
+              <span>Priority: {{ c.get('priority') }}</span>
+            {% endif %}
             <span>&bull;</span>
             <span>{{ c.get('created_at', '') }}</span>
           </div>

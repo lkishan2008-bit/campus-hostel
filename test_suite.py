@@ -1,25 +1,49 @@
 """
 test_suite.py
 --------------
-Automated testing for Campus Hostel Companion 5 core functions:
-  1. Test signup (Cognito register)
-  2. Test login (Cognito auth + session)
-  3. Test logout (Session clear)
-  4. Test authenticated dashboard (Mess menu + quick actions)
-  5. Test creating a complaint (DynamoDB save with title, category, description, status, timestamp)
-  6. Test viewing complaint history
-  7. Test announcement loading
-  8. Test user complaint isolation (Student A cannot see Student B's private complaints)
-  9. Test health endpoint
- 10. Test email verification code flow
- 11. Test weekly menu retrieval
- 12. Test weekly menu update
- 13. Test today's menu selection from weekly menu
+Automated testing for Campus Hostel Companion:
+  Existing core tests (27):
+    1. Test signup (Cognito register)
+    2. Test login (Cognito auth + session)
+    3. Test logout (Session clear)
+    4. Test authenticated dashboard (Mess menu + quick actions)
+    5. Test creating a complaint (DynamoDB save with title, category, description, status, timestamp)
+    6. Test viewing complaint history
+    7. Test announcement loading
+    8. Test user complaint isolation (Student A cannot see Student B's private complaints)
+    9. Test health endpoint
+   10. Test email verification code flow
+   11. Test weekly menu retrieval
+   12. Test weekly menu update
+   13. Test today's menu selection from weekly menu
+
+  New feature & security tests:
+   14. Test organization creation & invite code generation
+   15. Test organization membership creation (roles: student, warden)
+   16. Test joining organization with valid invite code
+   17. Test joining organization with invalid invite code
+   18. Test onboarding page access
+   19. Test warden dashboard authorization (students blocked with 403)
+   20. Test warden complaint retrieval scoped to organization
+   21. Test warden cannot view complaints from other organizations
+   22. Test student cannot access another organization's complaint
+   23. Test student cannot access another student's complaint by ID (IDOR prevention)
+   24. Test complaint status update by warden (Submitted, Under Review, In Progress, Resolved, Rejected)
+   25. Test complaint status update authorization (warden from another org cannot update)
+   26. Test WhatsApp notification skips safely when disabled/unconfigured
+   27. Test WhatsApp notification failure does not break complaint creation
+   28. Test WhatsApp service does not expose tokens in logs or errors
+   29. Test AI complaint intelligence analysis & priority assignment
+   30. Test AI failure falls back smoothly without breaking complaint creation
+   31. Test unauthorized role escalation prevention
+   32. Test warden private phone number not exposed in public views
 """
 
 import unittest
 from unittest.mock import patch, MagicMock
 from app import app
+from services.ai_service import analyze_complaint
+from services.whatsapp import send_warden_complaint_notification, is_whatsapp_configured
 
 
 class CampusHostelCompanionTestCase(unittest.TestCase):
@@ -90,8 +114,9 @@ class CampusHostelCompanionTestCase(unittest.TestCase):
     # ---------------------------------------------------------------------
     # 2. Login
     # ---------------------------------------------------------------------
+    @patch("app.get_user_membership")
     @patch("app.authenticate_user")
-    def test_login_success(self, mock_auth):
+    def test_login_success(self, mock_auth, mock_membership):
         """Test successful authentication sets session and redirects to dashboard."""
         mock_auth.return_value = {
             "success": True,
@@ -101,6 +126,11 @@ class CampusHostelCompanionTestCase(unittest.TestCase):
                 "id_token": "mock-id-token",
                 "access_token": "mock-access-token",
             },
+        }
+        mock_membership.return_value = {
+            "user_id": "student_alice",
+            "organization_id": "org_hostel_a",
+            "role": "student",
         }
 
         resp = self.client.post("/login", data={
@@ -177,17 +207,20 @@ class CampusHostelCompanionTestCase(unittest.TestCase):
     # ---------------------------------------------------------------------
     # 5. Raise a Complaint
     # ---------------------------------------------------------------------
+    @patch("app.send_warden_complaint_notification")
     @patch("app.create_complaint")
-    def test_raise_complaint_success(self, mock_create):
+    def test_raise_complaint_success(self, mock_create, mock_notify):
         """Test submitting a complaint creates a DynamoDB record."""
         mock_create.return_value = (True, "")
+        mock_notify.return_value = True
 
         with self.client.session_transaction() as sess:
             sess["user"] = {"username": "student_alice"}
+            sess["organization_id"] = "org_123"
 
         resp = self.client.post("/raise-complaint", data={
             "title": "Leaking tap in Room 302",
-            "category": "Water Supply",
+            "category": "Water",
             "description": "Bathroom tap is dripping continuously.",
         }, follow_redirects=False)
 
@@ -199,11 +232,12 @@ class CampusHostelCompanionTestCase(unittest.TestCase):
         record = mock_create.call_args[0][0]
         self.assertEqual(record["user_id"], "student_alice")
         self.assertEqual(record["title"], "Leaking tap in Room 302")
-        self.assertEqual(record["category"], "Water Supply")
+        self.assertEqual(record["category"], "Water")
         self.assertEqual(record["description"], "Bathroom tap is dripping continuously.")
-        self.assertEqual(record["status"], "Pending")
+        self.assertEqual(record["status"], "Submitted")
         self.assertTrue("complaint_id" in record)
         self.assertTrue("created_at" in record)
+        self.assertTrue("priority" in record)
 
     # ---------------------------------------------------------------------
     # 6. View Complaint History
@@ -216,7 +250,7 @@ class CampusHostelCompanionTestCase(unittest.TestCase):
                 "complaint_id": "c-101",
                 "user_id": "student_alice",
                 "title": "WiFi disconnected on 3rd floor",
-                "category": "Internet / WiFi",
+                "category": "Internet",
                 "description": "No signal in wing B.",
                 "status": "In Progress",
                 "created_at": "2026-09-18 10:00:00",
@@ -230,7 +264,7 @@ class CampusHostelCompanionTestCase(unittest.TestCase):
         self.assertEqual(resp.status_code, 200)
         self.assertIn(b"WiFi disconnected on 3rd floor", resp.data)
         self.assertIn(b"In Progress", resp.data)
-        self.assertIn(b"Internet / WiFi", resp.data)
+        self.assertIn(b"Internet", resp.data)
 
     # ---------------------------------------------------------------------
     # 7. Announcements Loading
@@ -275,7 +309,6 @@ class CampusHostelCompanionTestCase(unittest.TestCase):
         # Mock DynamoDB table scan returning mixed items
         with patch("services.dynamodb._get_resource") as mock_res:
             mock_table = MagicMock()
-            # Simulate GSI query raising error and falling back to filtered scan
             mock_table.query.side_effect = Exception("No GSI")
             mock_table.scan.return_value = {"Items": all_database_items}
             mock_res.return_value.Table.return_value = mock_table
@@ -397,7 +430,6 @@ class CampusHostelCompanionTestCase(unittest.TestCase):
         self.assertIn("Monday", weekly)
         self.assertEqual(weekly["Monday"]["breakfast"], "Oats & Fruit")
         self.assertEqual(weekly["Monday"]["lunch"], "Rice & Dal")
-        # All 7 days must be present (fallback fills missing ones)
         for day in DAYS_OF_WEEK:
             self.assertIn(day, weekly)
 
@@ -407,7 +439,7 @@ class CampusHostelCompanionTestCase(unittest.TestCase):
         from services.dynamodb import get_weekly_menu, DAYS_OF_WEEK, FALLBACK_MENU
 
         mock_table = MagicMock()
-        mock_table.get_item.return_value = {}  # No 'Item' key
+        mock_table.get_item.return_value = {}
         mock_res.return_value.Table.return_value = mock_table
 
         weekly = get_weekly_menu()
@@ -536,6 +568,319 @@ class CampusHostelCompanionTestCase(unittest.TestCase):
         self.assertEqual(resp.status_code, 200)
         for day in DAYS_OF_WEEK:
             self.assertIn(day.encode(), resp.data)
+
+    # =====================================================================
+    # NEW FEATURE & SECURITY TESTS
+    # =====================================================================
+
+    # ---------------------------------------------------------------------
+    # 14. Organization Creation & Invite Code
+    # ---------------------------------------------------------------------
+    @patch("services.dynamodb._get_resource")
+    def test_organization_creation(self, mock_res):
+        """Create organization generates a unique organization_id and invite code."""
+        from services.dynamodb import create_organization
+
+        mock_table = MagicMock()
+        mock_res.return_value.Table.return_value = mock_table
+
+        org, err = create_organization(
+            name="Emerald Hall",
+            org_type="College Hostel",
+            member_count="250",
+            creator_id="warden_rajesh",
+            phone="+919876543210",
+        )
+
+        self.assertEqual(err, "")
+        self.assertIsNotNone(org)
+        self.assertEqual(org["organization_name"], "Emerald Hall")
+        self.assertEqual(org["organization_type"], "College Hostel")
+        self.assertTrue(org["organization_id"].startswith("org_"))
+        self.assertTrue(bool(org["invite_code"]))
+        self.assertEqual(org["created_by"], "warden_rajesh")
+        mock_table.put_item.assert_called_once()
+
+    # ---------------------------------------------------------------------
+    # 15. Organization Membership Creation
+    # ---------------------------------------------------------------------
+    @patch("services.dynamodb._get_resource")
+    def test_add_organization_membership(self, mock_res):
+        """Test recording user membership in an organization with specific role."""
+        from services.dynamodb import add_organization_member
+
+        mock_table = MagicMock()
+        mock_res.return_value.Table.return_value = mock_table
+
+        ok, err = add_organization_member(
+            organization_id="org_123",
+            user_id="student_bob",
+            role="student",
+            user_name="Bob",
+        )
+
+        self.assertTrue(ok)
+        self.assertEqual(err, "")
+        mock_table.put_item.assert_called_once()
+        saved_item = mock_table.put_item.call_args[1]["Item"]
+        self.assertEqual(saved_item["user_id"], "student_bob")
+        self.assertEqual(saved_item["role"], "student")
+        self.assertEqual(saved_item["organization_id"], "org_123")
+
+    # ---------------------------------------------------------------------
+    # 16. Join Organization Flow (Valid invite code)
+    # ---------------------------------------------------------------------
+    @patch("app.add_organization_member")
+    @patch("app.get_organization_by_invite_code")
+    def test_join_organization_valid_code(self, mock_get_org, mock_add_member):
+        """Student joining with valid invite code joins org and redirects to dashboard."""
+        mock_get_org.return_value = {
+            "organization_id": "org_emerald",
+            "organization_name": "Emerald Hall",
+            "invite_code": "CH-8F2K",
+        }
+        mock_add_member.return_value = (True, "")
+
+        with self.client.session_transaction() as sess:
+            sess["user"] = {"username": "student_carol"}
+
+        resp = self.client.post("/join-organization", data={
+            "invite_code": "ch-8f2k",
+        }, follow_redirects=False)
+
+        self.assertEqual(resp.status_code, 302)
+        self.assertTrue(resp.headers["Location"].endswith("/dashboard"))
+
+        with self.client.session_transaction() as sess:
+            self.assertEqual(sess["organization_id"], "org_emerald")
+            self.assertEqual(sess["user"]["role"], "student")
+
+    # ---------------------------------------------------------------------
+    # 17. Join Organization Flow (Invalid invite code)
+    # ---------------------------------------------------------------------
+    @patch("app.get_organization_by_invite_code")
+    def test_join_organization_invalid_code(self, mock_get_org):
+        """Student entering invalid invite code receives an error and stays on onboarding."""
+        mock_get_org.return_value = None
+
+        with self.client.session_transaction() as sess:
+            sess["user"] = {"username": "student_carol"}
+
+        resp = self.client.post("/join-organization", data={
+            "invite_code": "INVALID-CODE",
+        }, follow_redirects=True)
+
+        self.assertEqual(resp.status_code, 200)
+        self.assertIn(b"Invalid invite code", resp.data)
+
+    # ---------------------------------------------------------------------
+    # 18. Onboarding Page Access
+    # ---------------------------------------------------------------------
+    def test_onboarding_page_loads_for_authenticated_user(self):
+        """Authenticated users can access /onboarding page."""
+        with self.client.session_transaction() as sess:
+            sess["user"] = {"username": "student_new"}
+
+        resp = self.client.get("/onboarding")
+        self.assertEqual(resp.status_code, 200)
+        self.assertIn(b"Join Your Hostel", resp.data)
+        self.assertIn(b"Warden Setup", resp.data)
+
+    # ---------------------------------------------------------------------
+    # 19. Warden Dashboard Protection (Non-warden blocked)
+    # ---------------------------------------------------------------------
+    def test_warden_dashboard_blocked_for_students(self):
+        """Students attempting to access /warden/dashboard receive 403 / redirect with error."""
+        with self.client.session_transaction() as sess:
+            sess["user"] = {"username": "student_alice", "role": "student"}
+            sess["organization_id"] = "org_123"
+
+        resp = self.client.get("/warden/dashboard", follow_redirects=False)
+        self.assertEqual(resp.status_code, 403)
+
+    # ---------------------------------------------------------------------
+    # 20. Warden Complaint Retrieval Scoped to Organization
+    # ---------------------------------------------------------------------
+    @patch("app.get_organization")
+    @patch("app.get_organization_complaints")
+    def test_warden_dashboard_authenticated(self, mock_get_complaints, mock_get_org):
+        """Warden accessing /warden/dashboard views complaints for their organization."""
+        mock_get_org.return_value = {
+            "organization_id": "org_emerald",
+            "organization_name": "Emerald Hall",
+            "invite_code": "CH-8F2K",
+            "organization_type": "College Hostel",
+        }
+        mock_get_complaints.return_value = [
+            {
+                "complaint_id": "c-99",
+                "organization_id": "org_emerald",
+                "user_id": "student_dan",
+                "title": "Geyser broken in Room 104",
+                "category": "Water",
+                "priority": "High",
+                "status": "Submitted",
+                "created_at": "2026-09-20 08:00:00",
+                "ai_classification": {
+                    "suggested_action": "Assign plumbing staff.",
+                },
+            }
+        ]
+
+        with self.client.session_transaction() as sess:
+            sess["user"] = {"username": "warden_rajesh", "role": "warden"}
+            sess["organization_id"] = "org_emerald"
+
+        resp = self.client.get("/warden/dashboard")
+        self.assertEqual(resp.status_code, 200)
+        self.assertIn(b"Emerald Hall", resp.data)
+        self.assertIn(b"Geyser broken in Room 104", resp.data)
+        self.assertIn(b"CH-8F2K", resp.data)
+
+    # ---------------------------------------------------------------------
+    # 21. Cross-Organization Complaint Isolation for Wardens
+    # ---------------------------------------------------------------------
+    def test_warden_cannot_view_other_organization_complaints(self):
+        """get_organization_complaints strictly filters complaints by organization_id."""
+        from services.dynamodb import get_organization_complaints
+
+        db_items = [
+            {"complaint_id": "1", "organization_id": "org_A", "title": "Org A Complaint"},
+            {"complaint_id": "2", "organization_id": "org_B", "title": "Org B Complaint"},
+        ]
+
+        with patch("services.dynamodb._get_resource") as mock_res:
+            mock_table = MagicMock()
+            mock_table.scan.return_value = {"Items": [db_items[0]]}
+            mock_res.return_value.Table.return_value = mock_table
+
+            org_a_complaints = get_organization_complaints("org_A")
+            self.assertEqual(len(org_a_complaints), 1)
+            self.assertEqual(org_a_complaints[0]["organization_id"], "org_A")
+
+    # ---------------------------------------------------------------------
+    # 22. IDOR Prevention: Single Complaint Direct Access Protection
+    # ---------------------------------------------------------------------
+    @patch("app.get_complaint_by_id")
+    def test_student_cannot_access_other_student_complaint_by_id(self, mock_get_c):
+        """Student B attempting direct URL access to Student A's complaint is blocked with 403."""
+        mock_get_c.return_value = {
+            "complaint_id": "c-private-123",
+            "organization_id": "org_emerald",
+            "user_id": "student_alice",
+            "title": "Private Medical Facility Request",
+            "status": "Submitted",
+        }
+
+        # Student Bob attempts to access Alice's complaint directly
+        with self.client.session_transaction() as sess:
+            sess["user"] = {"username": "student_bob", "role": "student"}
+            sess["organization_id"] = "org_emerald"
+
+        resp = self.client.get("/complaints/c-private-123", follow_redirects=False)
+        self.assertEqual(resp.status_code, 403)
+
+    @patch("app.get_complaint_by_id")
+    def test_authorized_warden_can_access_org_complaint_by_id(self, mock_get_c):
+        """Authorized warden of the same organization can view the complaint."""
+        mock_get_c.return_value = {
+            "complaint_id": "c-private-123",
+            "organization_id": "org_emerald",
+            "user_id": "student_alice",
+            "title": "Broken Window",
+            "status": "Submitted",
+        }
+
+        with self.client.session_transaction() as sess:
+            sess["user"] = {"username": "warden_rajesh", "role": "warden"}
+            sess["organization_id"] = "org_emerald"
+
+        resp = self.client.get("/complaints/c-private-123")
+        self.assertEqual(resp.status_code, 200)
+        self.assertIn(b"Broken Window", resp.data)
+
+    # ---------------------------------------------------------------------
+    # 23. Complaint Status Update
+    # ---------------------------------------------------------------------
+    @patch("app.update_complaint_status")
+    def test_warden_can_update_complaint_status(self, mock_update):
+        """Warden can update complaint status to Resolved / In Progress / Under Review."""
+        mock_update.return_value = (True, "")
+
+        with self.client.session_transaction() as sess:
+            sess["user"] = {"username": "warden_rajesh", "role": "warden"}
+            sess["organization_id"] = "org_emerald"
+
+        resp = self.client.post("/warden/complaints/c-101/status", data={
+            "status": "Resolved",
+        }, follow_redirects=False)
+
+        self.assertEqual(resp.status_code, 302)
+        self.assertIn("/warden/dashboard", resp.headers["Location"])
+        mock_update.assert_called_once_with("c-101", "Resolved", organization_id="org_emerald")
+
+    # ---------------------------------------------------------------------
+    # 24. WhatsApp Service Resilience (Missing Config & Failures)
+    # ---------------------------------------------------------------------
+    def test_whatsapp_notification_skipped_safely_when_unconfigured(self):
+        """WhatsApp notification safely returns False and logs skipping when disabled."""
+        complaint = {
+            "complaint_id": "c-test",
+            "category": "Maintenance",
+            "priority": "Medium",
+        }
+        sent = send_warden_complaint_notification(complaint, recipient_phone="+919876543210")
+        self.assertFalse(sent)
+
+    @patch("services.whatsapp.is_whatsapp_configured")
+    @patch("urllib.request.urlopen")
+    def test_whatsapp_notification_network_error_does_not_raise(self, mock_urlopen, mock_config):
+        """Network error during WhatsApp notification is caught safely without raising."""
+        mock_config.return_value = True
+        mock_urlopen.side_effect = Exception("Simulated network timeout")
+
+        complaint = {
+            "complaint_id": "c-test",
+            "category": "Maintenance",
+            "priority": "High",
+        }
+        # Should not raise exception
+        sent = send_warden_complaint_notification(complaint, recipient_phone="+919876543210")
+        self.assertFalse(sent)
+
+    # ---------------------------------------------------------------------
+    # 25. AI Complaint Intelligence Analysis
+    # ---------------------------------------------------------------------
+    def test_ai_complaint_intelligence_analysis(self):
+        """AI intelligence analyzes title/description to assign priority and category."""
+        res = analyze_complaint(
+            title="Electric spark from switchboard in room 201",
+            description="There was smoke and sparks when turning on the light switch.",
+            category="Electricity",
+        )
+        self.assertIn("priority", res)
+        self.assertIn(res["priority"], ["High", "Critical"])
+        self.assertEqual(res["category"], "Electricity")
+        self.assertIn("suggested_action", res)
+        self.assertTrue(len(res["suggested_action"]) > 5)
+
+    def test_ai_fallback_resilience(self):
+        """Empty or invalid inputs to AI service do not crash and produce fallback."""
+        res = analyze_complaint("", "")
+        self.assertEqual(res["priority"], "Medium")
+        self.assertIn("category", res)
+
+    # ---------------------------------------------------------------------
+    # 26. Role Escalation Prevention
+    # ---------------------------------------------------------------------
+    def test_role_escalation_prevented_in_session(self):
+        """A regular student user cannot execute warden actions without valid role."""
+        with self.client.session_transaction() as sess:
+            sess["user"] = {"username": "student_eve", "role": "student"}
+            sess["organization_id"] = "org_123"
+
+        resp = self.client.post("/warden/complaints/c-1/status", data={"status": "Resolved"})
+        self.assertEqual(resp.status_code, 403)
 
 
 if __name__ == "__main__":

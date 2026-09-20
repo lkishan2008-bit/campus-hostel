@@ -1,0 +1,161 @@
+{% extends "base.html" %}
+
+{% block title %}Join or Create Organization | Campus Hostel Companion{% endblock %}
+
+{% block content %}
+<div class="auth-container" style="max-width: 480px;">
+  <div class="auth-card">
+
+    <div class="auth-tabs" role="tablist">
+      <button
+        type="button"
+        class="auth-tab active"
+        id="tab-join"
+        role="tab"
+        aria-selected="true"
+        data-tab="join"
+      >Join Organization</button>
+      <button
+        type="button"
+        class="auth-tab"
+        id="tab-create"
+        role="tab"
+        aria-selected="false"
+        data-tab="create"
+      >Warden Setup</button>
+    </div>
+
+    <!-- ── Panel 1: Join Organization (Student) ──────────────────────── -->
+    <div id="panel-join" class="auth-panel">
+      <h1>Join Your Hostel</h1>
+      <p class="auth-subtext">Enter the secure invite code provided by your hostel warden.</p>
+
+      <form method="POST" action="{{ url_for('join_organization') }}">
+        <div class="form-group" style="margin-bottom: 1.5rem;">
+          <label for="invite-code">Organization / Hostel Invite Code</label>
+          <input
+            type="text"
+            id="invite-code"
+            name="invite_code"
+            class="form-input"
+            placeholder="e.g. CH-8F2K"
+            style="text-transform: uppercase; font-family: monospace; font-size: 1.1rem; letter-spacing: 0.1em;"
+            maxlength="20"
+            required
+            autofocus
+          />
+          <span class="auth-note" style="display: block; text-align: left; margin-top: 0.4rem;">
+            Ask your hostel warden or residence assistant for your community join code.
+          </span>
+        </div>
+
+        <button type="submit" class="btn-black" style="width: 100%;" id="btn-join-org">
+          <span>Join Organization &rarr;</span>
+        </button>
+      </form>
+    </div>
+
+    <!-- ── Panel 2: Create Organization (Warden) ─────────────────────── -->
+    <div id="panel-create" class="auth-panel hidden">
+      <h1>Hostel / Community Setup</h1>
+      <p class="auth-subtext">Register a new organization and generate a student invite code.</p>
+
+      <form method="POST" action="{{ url_for('create_organization_route') }}">
+        <div class="form-group">
+          <label for="org-name">Organization / Hostel Name</label>
+          <input
+            type="text"
+            id="org-name"
+            name="organization_name"
+            class="form-input"
+            placeholder="e.g. Emerald Hall of Residence"
+            required
+          />
+        </div>
+
+        <div class="form-group">
+          <label for="org-type">Organization Type</label>
+          <select id="org-type" name="organization_type" class="form-select" required>
+            <option value="College Hostel" selected>College Hostel</option>
+            <option value="Hostel">Hostel</option>
+            <option value="Community">Community</option>
+            <option value="Organization">Organization</option>
+            <option value="Charity">Charity</option>
+            <option value="Other">Other</option>
+          </select>
+        </div>
+
+        <div class="form-group">
+          <label for="member-count">Approximate Number of Residents</label>
+          <input
+            type="number"
+            id="member-count"
+            name="member_count"
+            class="form-input"
+            placeholder="e.g. 150"
+            min="1"
+            value="100"
+            required
+          />
+        </div>
+
+        <div class="form-group">
+          <label for="warden-name">Warden / Guardian Full Name</label>
+          <input
+            type="text"
+            id="warden-name"
+            name="warden_name"
+            class="form-input"
+            placeholder="e.g. Dr. Rajesh Sharma"
+            required
+          />
+        </div>
+
+        <div class="form-group" style="margin-bottom: 1.5rem;">
+          <label for="warden-phone">Warden Contact Phone (WhatsApp)
+            <span class="auth-note" style="display: inline; margin: 0; font-size: 0.75rem;">(Kept private)</span>
+          </label>
+          <input
+            type="tel"
+            id="warden-phone"
+            name="warden_phone"
+            class="form-input"
+            placeholder="+91 98765 43210"
+            required
+          />
+          <span class="auth-note" style="display: block; text-align: left; margin-top: 0.4rem;">
+            Used strictly for urgent server-side WhatsApp notifications. Never exposed to students.
+          </span>
+        </div>
+
+        <button type="submit" class="btn-black" style="width: 100%;" id="btn-create-org">
+          <span>Create Organization &amp; Generate Code &rarr;</span>
+        </button>
+      </form>
+    </div>
+
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+(function () {
+  const tabs = document.querySelectorAll('.auth-tab');
+  const panels = document.querySelectorAll('.auth-panel');
+
+  tabs.forEach(tab => {
+    tab.addEventListener('click', () => {
+      const target = tab.dataset.tab;
+      tabs.forEach(t => {
+        t.classList.toggle('active', t.dataset.tab === target);
+        t.setAttribute('aria-selected', t.dataset.tab === target ? 'true' : 'false');
+      });
+      panels.forEach(p => {
+        p.classList.toggle('hidden', p.id !== `panel-${target}`);
+      });
+    });
+  });
+})();
+</script>
+{% endblock %}

@@ -30,11 +30,15 @@
       {% if session.get('user') %}
         <!-- On all other pages (logged in): nav tabs Dashboard | Raise a complaint | My complaints | Weekly Menu | Announcements -->
         <div class="navbar__tabs">
+          {% if session.get('user', {}).get('role') == 'warden' %}
+            <a href="{{ url_for('warden_dashboard') }}" class="navbar__tab {% if request.endpoint in ['warden_dashboard', 'warden_complaints'] %}active{% endif %}">Warden Dashboard</a>
+            <span class="nav-pipe">|</span>
+          {% endif %}
           <a href="{{ url_for('dashboard') }}" class="navbar__tab {% if request.endpoint == 'dashboard' %}active{% endif %}">Dashboard</a>
           <span class="nav-pipe">|</span>
           <a href="{{ url_for('raise_complaint') }}" class="navbar__tab {% if request.endpoint in ['raise_complaint', 'complaints_new'] %}active{% endif %}">Raise a Complaint</a>
           <span class="nav-pipe">|</span>
-          <a href="{{ url_for('complaints') }}" class="navbar__tab {% if request.endpoint == 'complaints' %}active{% endif %}">My Complaints</a>
+          <a href="{{ url_for('complaints') }}" class="navbar__tab {% if request.endpoint in ['complaints', 'view_single_complaint'] %}active{% endif %}">My Complaints</a>
           <span class="nav-pipe">|</span>
           <a href="{{ url_for('weekly_menu') }}" class="navbar__tab {% if request.endpoint in ['weekly_menu', 'edit_menu'] %}active{% endif %}">Weekly Menu</a>
           <span class="nav-pipe">|</span>
@@ -45,6 +49,7 @@
         <div class="navbar__right">
           <span class="user-status-pill">
             {{ session.get('user', {}).get('username') or 'guest' }}
+            {% if session.get('user', {}).get('role') == 'warden' %} (Warden){% endif %}
           </span>
           <a href="{{ url_for('logout') }}" class="signout-link">
             <span>Sign out</span>

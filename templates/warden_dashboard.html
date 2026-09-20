@@ -1,0 +1,199 @@
+{% extends "base.html" %}
+
+{% block title %}Warden Dashboard | Campus Hostel Companion{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div class="page-header-row">
+    <div>
+      <h1>Warden Management Dashboard</h1>
+      <p>{{ organization.get('organization_name', 'Campus Hostel') }} &bull; {{ organization.get('organization_type', 'Hostel') }}</p>
+    </div>
+    <div style="text-align: right;">
+      <div style="font-size: 0.75rem; color: var(--text-muted); font-weight: 500; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 0.25rem;">
+        Student Invite Code
+      </div>
+      <div style="display: inline-flex; align-items: center; gap: 0.5rem; background: #FAFAFA; border: 1px solid var(--border); padding: 0.35rem 0.75rem; border-radius: var(--radius); font-family: monospace; font-weight: 700; font-size: 1rem; letter-spacing: 0.05em;">
+        <span>{{ organization.get('invite_code', 'N/A') }}</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Stats row -->
+<div class="stats-grid" style="margin-bottom: 2rem;">
+  <div class="stat-box">
+    <div class="stat-content">
+      <span>{{ submitted_count|default(0) }}</span>
+      <span class="stat-label"> / Submitted</span>
+    </div>
+  </div>
+  <div class="stat-box">
+    <div class="stat-content">
+      <span>{{ in_progress_count|default(0) }}</span>
+      <span class="stat-label"> / In Progress</span>
+    </div>
+  </div>
+  <div class="stat-box">
+    <div class="stat-content">
+      <span>{{ resolved_count|default(0) }}</span>
+      <span class="stat-label"> / Resolved</span>
+    </div>
+  </div>
+  <div class="stat-box">
+    <div class="stat-content">
+      <span>{{ total_count|default(0) }}</span>
+      <span class="stat-label"> / Total</span>
+    </div>
+  </div>
+</div>
+
+<!-- Filter tabs -->
+<div class="filter-tabs">
+  <button type="button" class="filter-tab active" onclick="filterWardenComplaints('all', this)">All ({{ complaints|length }})</button>
+  <button type="button" class="filter-tab" onclick="filterWardenComplaints('submitted', this)">Submitted</button>
+  <button type="button" class="filter-tab" onclick="filterWardenComplaints('progress', this)">In Progress / Review</button>
+  <button type="button" class="filter-tab" onclick="filterWardenComplaints('resolved', this)">Resolved</button>
+  <button type="button" class="filter-tab" onclick="filterWardenComplaints('rejected', this)">Rejected</button>
+</div>
+
+<!-- Complaints Card -->
+<div class="card">
+  <div class="card-header-row">
+    <div class="card__title">Hostel Complaints &amp; AI Intelligence</div>
+    <div class="card-tag" id="wardenComplaintsCount">{{ complaints|length }} complaints</div>
+  </div>
+
+  {% if complaints and complaints|length > 0 %}
+    <div class="menu-list" id="wardenComplaintsList">
+      {% for c in complaints %}
+        {% set st = c.get('status', 'Submitted')|lower %}
+        <div class="complaint-item" data-status="{{ st }}" style="padding-block: 1.25rem;">
+          <div class="complaint-item-top" style="align-items: flex-start; gap: 1rem;">
+            <div style="flex: 1;">
+              <div style="display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; margin-bottom: 0.35rem;">
+                <span class="complaint-title" style="font-size: 1.05rem;">{{ c.get('title', '') }}</span>
+
+                <!-- Priority badge -->
+                {% set prio = c.get('priority', 'Medium')|lower %}
+                {% if prio == 'critical' %}
+                  <span style="font-size: 0.72rem; font-weight: 700; background: #111111; color: #FFFFFF; padding: 2px 8px; border-radius: var(--radius-pill);">CRITICAL</span>
+                {% elif prio == 'high' %}
+                  <span style="font-size: 0.72rem; font-weight: 600; border: 1px solid #111111; color: #111111; padding: 1px 7px; border-radius: var(--radius-pill);">HIGH</span>
+                {% else %}
+                  <span style="font-size: 0.72rem; color: var(--text-muted); border: 1px solid var(--border); padding: 1px 7px; border-radius: var(--radius-pill);">{{ c.get('priority', 'Medium') }}</span>
+                {% endif %}
+
+                <!-- Category badge -->
+                <span style="font-size: 0.75rem; color: var(--text-muted); font-weight: 500;">
+                  [{{ c.get('category', 'General') }}]
+                </span>
+              </div>
+
+              <div class="complaint-meta" style="margin-bottom: 0.5rem;">
+                <span>Resident: <strong>{{ c.get('user_id', 'Anonymous') }}</strong></span>
+                <span>&bull;</span>
+                <span>Logged: {{ c.get('created_at', '') }}</span>
+              </div>
+
+              {% if c.get('description') %}
+                <div class="complaint-desc" style="color: var(--text-main); font-size: 0.9rem; margin-bottom: 0.75rem;">
+                  {{ c.get('description') }}
+                </div>
+              {% endif %}
+
+              <!-- AI Intelligence section -->
+              {% if c.get('ai_classification') %}
+                {% set ai = c.get('ai_classification') %}
+                <div style="background-color: #FAFAFA; border: 1px solid var(--border-light); border-radius: var(--radius); padding: 0.65rem 0.85rem; font-size: 0.8125rem; margin-top: 0.5rem;">
+                  <div style="font-weight: 600; color: var(--text-main); margin-bottom: 0.2rem; display: flex; align-items: center; gap: 0.35rem;">
+                    <svg class="icon" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#111111" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+                      <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon>
+                    </svg>
+                    <span>AI Assistant Recommendation:</span>
+                  </div>
+                  <div style="color: var(--text-muted);">
+                    {{ ai.get('suggested_action', 'Review in warden office.') }}
+                  </div>
+                </div>
+              {% endif %}
+            </div>
+
+            <!-- Status Update Form -->
+            <div style="min-width: 170px; text-align: right;">
+              <form method="POST" action="{{ url_for('update_complaint_status_route', complaint_id=c.get('complaint_id')) }}" style="display: flex; flex-direction: column; gap: 0.4rem; align-items: flex-end;">
+                <label for="status-{{ c.get('complaint_id') }}" style="font-size: 0.75rem; color: var(--text-muted);">Current Status</label>
+                <select
+                  id="status-{{ c.get('complaint_id') }}"
+                  name="status"
+                  class="form-select"
+                  style="padding: 0.35rem 0.6rem; font-size: 0.8125rem;"
+                  onchange="this.form.submit()"
+                >
+                  <option value="Submitted" {% if c.get('status') == 'Submitted' %}selected{% endif %}>Submitted</option>
+                  <option value="Under Review" {% if c.get('status') == 'Under Review' %}selected{% endif %}>Under Review</option>
+                  <option value="In Progress" {% if c.get('status') in ['In Progress', 'Pending', 'Open'] %}selected{% endif %}>In Progress</option>
+                  <option value="Resolved" {% if c.get('status') == 'Resolved' %}selected{% endif %}>Resolved</option>
+                  <option value="Rejected" {% if c.get('status') == 'Rejected' %}selected{% endif %}>Rejected</option>
+                </select>
+                <noscript>
+                  <button type="submit" class="btn-outline btn-outline-sm">Save</button>
+                </noscript>
+              </form>
+            </div>
+          </div>
+        </div>
+        {% if not loop.last %}
+          <hr class="announcement-divider" />
+        {% endif %}
+      {% endfor %}
+    </div>
+  {% else %}
+    <div class="empty-state">
+      <div class="empty-state-icon">
+        <svg class="icon" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#111111" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+          <rect width="8" height="4" x="8" y="2" rx="1" ry="1"></rect>
+          <path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"></path>
+        </svg>
+      </div>
+      <p>No complaints reported in your organization yet.</p>
+    </div>
+  {% endif %}
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function filterWardenComplaints(status, btn) {
+  document.querySelectorAll('.filter-tab').forEach(t => t.classList.remove('active'));
+  btn.classList.add('active');
+  const items = document.querySelectorAll('#wardenComplaintsList .complaint-item');
+  let visibleCount = 0;
+  items.forEach(item => {
+    const itemStatus = item.getAttribute('data-status') || '';
+    if (status === 'all') {
+      item.style.display = 'block';
+      visibleCount++;
+    } else if (status === 'submitted' && (itemStatus.includes('submitted') || itemStatus.includes('pending') || itemStatus.includes('open'))) {
+      item.style.display = 'block';
+      visibleCount++;
+    } else if (status === 'progress' && (itemStatus.includes('progress') || itemStatus.includes('review'))) {
+      item.style.display = 'block';
+      visibleCount++;
+    } else if (status === 'resolved' && itemStatus.includes('resolved')) {
+      item.style.display = 'block';
+      visibleCount++;
+    } else if (status === 'rejected' && itemStatus.includes('rejected')) {
+      item.style.display = 'block';
+      visibleCount++;
+    } else {
+      item.style.display = 'none';
+    }
+  });
+  const countElem = document.getElementById('wardenComplaintsCount');
+  if (countElem) {
+    countElem.textContent = visibleCount + ' complaints';
+  }
+}
+</script>
+{% endblock %}

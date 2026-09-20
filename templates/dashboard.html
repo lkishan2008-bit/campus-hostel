@@ -4,8 +4,19 @@
 
 {% block content %}
 <div class="page-header">
-  <h1>Welcome back</h1>
-  <p>{{ now }}</p>
+  <div class="page-header-row">
+    <div>
+      <h1>Welcome back{% if user.get('username') %}, {{ user.get('username') }}{% endif %}</h1>
+      <p>{{ now }}</p>
+    </div>
+    {% if session.get('organization_name') %}
+      <div style="text-align: right;">
+        <span class="user-status-pill" style="font-size: 0.8125rem; padding: 4px 12px;">
+          {{ session.get('organization_name') }}
+        </span>
+      </div>
+    {% endif %}
+  </div>
 </div>
 
 <div class="dashboard-grid">

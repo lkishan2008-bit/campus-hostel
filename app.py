@@ -36,13 +36,24 @@ from services.dynamodb import (
     save_weekly_menu,
     create_complaint,
     get_user_complaints,
+    get_organization_complaints,
+    get_complaint_by_id,
+    update_complaint_status,
+    create_organization,
+    get_organization,
+    get_organization_by_invite_code,
+    add_organization_member,
+    get_user_membership,
+    get_organization_members,
     get_announcements,
     DAYS_OF_WEEK,
 )
+from services.whatsapp import send_warden_complaint_notification
+from services.ai_service import analyze_complaint
 
 
 # -------------------------------------------------------------------------
-# Helper: Authentication & Authorization
+# Helper: Authentication & Authorization Decorators
 # -------------------------------------------------------------------------
 def is_logged_in() -> bool:
     """Returns True if a valid user session exists."""
@@ -60,6 +71,44 @@ def login_required(f):
     return decorated
 
 
+def warden_required(f):
+    """Decorator to restrict routes to authorized wardens/guardians only."""
+    @wraps(f)
+    def decorated(*args, **kwargs):
+        if not is_logged_in():
+            flash("Please log in to continue.", "info")
+            return redirect(url_for("login"))
+        user = session.get("user", {})
+        role = user.get("role", "student")
+        if role != "warden":
+            flash("Access denied: Warden authorization required.", "error")
+            return redirect(url_for("dashboard")), 403
+        return f(*args, **kwargs)
+    return decorated
+
+
+def sync_user_organization_session(username: str):
+    """Helper to fetch and synchronize organization & role into session."""
+    if not username:
+        return
+    try:
+        membership = get_user_membership(username)
+        if membership:
+            org_id = membership.get("organization_id", "")
+            role = membership.get("role", "student")
+            org = get_organization(org_id) if org_id else None
+            org_name = org.get("organization_name", "Campus Hostel") if org else "Campus Hostel"
+
+            session["organization_id"] = org_id
+            session["organization_name"] = org_name
+            if "user" in session:
+                session["user"]["role"] = role
+                session["user"]["organization_id"] = org_id
+                session["user"]["organization_name"] = org_name
+    except Exception:
+        pass
+
+
 # =========================================================================
 # PUBLIC ROUTES
 # =========================================================================
@@ -68,6 +117,9 @@ def login_required(f):
 def index():
     """Landing page — accessible without login."""
     if is_logged_in():
+        user = session.get("user", {})
+        if user.get("role") == "warden":
+            return redirect(url_for("warden_dashboard"))
         return redirect(url_for("dashboard"))
     return render_template("index.html")
 
@@ -87,6 +139,9 @@ def health():
 def login():
     """Handle user login/registration via AWS Cognito or display the auth card."""
     if is_logged_in():
+        user = session.get("user", {})
+        if user.get("role") == "warden":
+            return redirect(url_for("warden_dashboard"))
         return redirect(url_for("dashboard"))
 
     # Preserve active tab (login or register) for template
@@ -135,7 +190,19 @@ def login():
             if result["success"]:
                 session["user"] = result["user"]
                 display = result["user"].get("username") or username
+
+                # Synchronize membership & organization
+                sync_user_organization_session(display)
+
+                user_role = session.get("user", {}).get("role", "student")
                 flash(f"Welcome back, {display}!", "success")
+
+                # If no organization is joined yet, prompt onboarding
+                if not session.get("organization_id"):
+                    return redirect(url_for("onboarding"))
+
+                if user_role == "warden":
+                    return redirect(url_for("warden_dashboard"))
                 return redirect(url_for("dashboard"))
             else:
                 if result.get("not_confirmed"):
@@ -199,7 +266,13 @@ def verify_email():
 @app.route("/guest-login")
 def guest_login():
     """Log in as a guest resident."""
-    session["user"] = {"username": "guest", "email": "guest@campus.edu"}
+    session["user"] = {
+        "username": "guest",
+        "email": "guest@campus.edu",
+        "role": "student",
+    }
+    session["organization_id"] = "org_campus_default"
+    session["organization_name"] = "Campus Hostel"
     flash("Signed in as guest.", "info")
     return redirect(url_for("dashboard"))
 
@@ -219,6 +292,177 @@ def logout():
 
 
 # =========================================================================
+# ONBOARDING & ORGANIZATION MANAGEMENT
+# =========================================================================
+
+@app.route("/onboarding", methods=["GET"])
+@login_required
+def onboarding():
+    """One-time setup/join screen for organizations/hostels."""
+    user = session.get("user", {})
+    return render_template("onboarding.html", user=user)
+
+
+@app.route("/join-organization", methods=["POST"])
+@login_required
+def join_organization():
+    """Join an existing organization securely using an invite/join code."""
+    invite_code = request.form.get("invite_code", "").strip().upper()
+    user = session.get("user", {})
+    user_id = user.get("username", "")
+
+    if not invite_code:
+        flash("Please enter an organization invite code.", "error")
+        return redirect(url_for("onboarding"))
+
+    org = get_organization_by_invite_code(invite_code)
+    if not org:
+        flash("Invalid invite code. Please check with your hostel warden.", "error")
+        return redirect(url_for("onboarding"))
+
+    org_id = org.get("organization_id")
+    org_name = org.get("organization_name", "Hostel")
+
+    # Add student membership
+    success, err = add_organization_member(
+        organization_id=org_id,
+        user_id=user_id,
+        role="student",
+        user_name=user.get("username", user_id),
+    )
+
+    if success:
+        session["organization_id"] = org_id
+        session["organization_name"] = org_name
+        if "user" in session:
+            session["user"]["role"] = "student"
+            session["user"]["organization_id"] = org_id
+            session["user"]["organization_name"] = org_name
+        flash(f"Successfully joined {org_name}!", "success")
+        return redirect(url_for("dashboard"))
+    else:
+        flash(f"Could not join organization: {err}", "error")
+        return redirect(url_for("onboarding"))
+
+
+@app.route("/create-organization", methods=["POST"])
+@login_required
+def create_organization_route():
+    """Allow a warden/guardian to create and register an organization."""
+    org_name = request.form.get("organization_name", "").strip()
+    org_type = request.form.get("organization_type", "College Hostel").strip()
+    member_count = request.form.get("member_count", "100").strip()
+    warden_phone = request.form.get("warden_phone", "").strip()
+    warden_name = request.form.get("warden_name", "").strip()
+
+    user = session.get("user", {})
+    user_id = user.get("username", "")
+
+    if not org_name:
+        flash("Organization/Hostel name is required.", "error")
+        return redirect(url_for("onboarding"))
+
+    if not warden_phone:
+        flash("Warden contact phone number is required for notification setup.", "error")
+        return redirect(url_for("onboarding"))
+
+    # Create organization in DynamoDB
+    org, err = create_organization(
+        name=org_name,
+        org_type=org_type,
+        member_count=member_count,
+        creator_id=user_id,
+        phone=warden_phone,
+    )
+
+    if not org:
+        flash(f"Failed to create organization: {err}", "error")
+        return redirect(url_for("onboarding"))
+
+    org_id = org["organization_id"]
+    invite_code = org["invite_code"]
+
+    # Assign warden role to creator
+    add_organization_member(
+        organization_id=org_id,
+        user_id=user_id,
+        role="warden",
+        user_name=warden_name or user_id,
+    )
+
+    session["organization_id"] = org_id
+    session["organization_name"] = org_name
+    if "user" in session:
+        session["user"]["role"] = "warden"
+        session["user"]["organization_id"] = org_id
+        session["user"]["organization_name"] = org_name
+
+    flash(
+        f"Organization created successfully! Your Hostel Invite Code is {invite_code}. Share this code with students.",
+        "success",
+    )
+    return redirect(url_for("warden_dashboard"))
+
+
+# =========================================================================
+# WARDEN DASHBOARD & MANAGEMENT (Protected: Warden Role Required)
+# =========================================================================
+
+@app.route("/warden/complaints")
+@app.route("/warden/dashboard")
+@login_required
+@warden_required
+def warden_dashboard():
+    """Warden Dashboard: View all complaints for the warden's organization."""
+    user = session.get("user", {})
+    user_id = user.get("username", "")
+
+    sync_user_organization_session(user_id)
+    org_id = session.get("organization_id", "")
+    org = get_organization(org_id) if org_id else {}
+
+    complaints_list = get_organization_complaints(org_id) if org_id else []
+
+    submitted_count = sum(1 for c in complaints_list if str(c.get("status", "")).lower() in ["submitted", "pending", "open"])
+    in_progress_count = sum(1 for c in complaints_list if str(c.get("status", "")).lower() in ["in progress", "under review"])
+    resolved_count = sum(1 for c in complaints_list if str(c.get("status", "")).lower() == "resolved")
+    total_count = len(complaints_list)
+
+    return render_template(
+        "warden_dashboard.html",
+        user=user,
+        organization=org,
+        complaints=complaints_list,
+        submitted_count=submitted_count,
+        in_progress_count=in_progress_count,
+        resolved_count=resolved_count,
+        total_count=total_count,
+    )
+
+
+@app.route("/warden/complaints/<complaint_id>/status", methods=["POST"])
+@login_required
+@warden_required
+def update_complaint_status_route(complaint_id: str):
+    """Update complaint status by authorized warden."""
+    new_status = request.form.get("status", "").strip()
+    org_id = session.get("organization_id", "")
+
+    valid_statuses = ["Submitted", "Under Review", "In Progress", "Resolved", "Rejected", "Pending"]
+    if new_status not in valid_statuses:
+        flash("Invalid status specified.", "error")
+        return redirect(url_for("warden_dashboard"))
+
+    success, err = update_complaint_status(complaint_id, new_status, organization_id=org_id)
+    if success:
+        flash(f"Complaint status updated to {new_status}.", "success")
+    else:
+        flash(f"Could not update status: {err}", "error")
+
+    return redirect(url_for("warden_dashboard"))
+
+
+# =========================================================================
 # PROTECTED APPLICATION ROUTES (require login)
 # =========================================================================
 
@@ -228,10 +472,15 @@ def dashboard():
     """Show today's mess menu from DynamoDB, quick links, and complaints stats."""
     user = session.get("user", {})
     user_id = user.get("username", "")
+
+    # Synchronize org data if available
+    sync_user_organization_session(user_id)
+    org_id = session.get("organization_id", "")
+
     menu = get_todays_menu()
     now_str = datetime.now().strftime("%A, %d %B %Y")
-    user_complaints = get_user_complaints(user_id) if user_id else []
-    pending_count = sum(1 for c in user_complaints if str(c.get("status", "")).lower() in ["pending", "open", "in progress"])
+    user_complaints = get_user_complaints(user_id, org_id) if user_id else []
+    pending_count = sum(1 for c in user_complaints if str(c.get("status", "")).lower() in ["pending", "open", "in progress", "submitted", "under review"])
     resolved_count = sum(1 for c in user_complaints if str(c.get("status", "")).lower() == "resolved")
     total_count = len(user_complaints)
 
@@ -303,15 +552,44 @@ def complaints():
     """Show the logged-in user's own complaint history strictly isolated from others."""
     user = session.get("user", {})
     user_id = user.get("username", "")
-    user_complaints = get_user_complaints(user_id)
+    org_id = session.get("organization_id", "")
+    user_complaints = get_user_complaints(user_id, org_id)
     return render_template("complaints.html", complaints=user_complaints, user=user)
+
+
+@app.route("/complaints/<complaint_id>")
+@login_required
+def view_single_complaint(complaint_id: str):
+    """
+    Direct single complaint access.
+    Enforces strict authorization: Accessible ONLY by the student who created it
+    or by an authorized Warden of the same organization.
+    """
+    user = session.get("user", {})
+    user_id = user.get("username", "")
+    role = user.get("role", "student")
+    user_org_id = session.get("organization_id", "")
+
+    complaint = get_complaint_by_id(complaint_id)
+    if not complaint:
+        flash("Complaint not found.", "error")
+        return redirect(url_for("complaints")), 404
+
+    is_owner = (complaint.get("user_id") == user_id)
+    is_authorized_warden = (role == "warden" and complaint.get("organization_id") == user_org_id)
+
+    if not (is_owner or is_authorized_warden):
+        flash("Unauthorized access: You do not have permission to view this complaint.", "error")
+        return redirect(url_for("complaints")), 403
+
+    return render_template("complaints.html", complaints=[complaint], user=user, single_view=True)
 
 
 @app.route("/complaints/new", methods=["GET", "POST"])
 @app.route("/raise-complaint", methods=["GET", "POST"])
 @login_required
 def raise_complaint():
-    """Submit a new complaint to AWS DynamoDB."""
+    """Submit a new complaint with AI intelligence classification and warden notification."""
     user = session.get("user", {})
 
     if request.method == "POST":
@@ -324,18 +602,35 @@ def raise_complaint():
             return render_template("raise_complaint.html", user=user)
 
         user_id = user.get("username", "")
+        org_id = session.get("organization_id", "org_campus_default")
+        now_iso = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
+
+        # 1. AI complaint intelligence layer (advisory, resilient)
+        ai_data = analyze_complaint(title, description, category)
+        priority = ai_data.get("priority", "Medium")
+
         new_complaint = {
             "complaint_id": str(uuid.uuid4()),
+            "organization_id": org_id,
             "user_id": user_id,
             "title": title,
             "category": category,
             "description": description,
-            "status": "Pending",
-            "created_at": datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S"),
+            "status": "Submitted",
+            "priority": priority,
+            "ai_classification": ai_data,
+            "created_at": now_iso,
+            "updated_at": now_iso,
         }
 
+        # 2. Save complaint to DynamoDB
         success, err = create_complaint(new_complaint)
         if success:
+            # 3. WhatsApp notification to warden (safe, silent fallback if disabled)
+            org = get_organization(org_id) if org_id else {}
+            warden_phone = org.get("warden_phone") if org else None
+            send_warden_complaint_notification(new_complaint, recipient_phone=warden_phone)
+
             flash("Complaint submitted successfully.", "success")
             return redirect(url_for("complaints"))
         else:
@@ -350,7 +645,8 @@ def raise_complaint():
 def announcements():
     """Display hostel-wide announcements from AWS DynamoDB."""
     user = session.get("user", {})
-    all_announcements = get_announcements()
+    org_id = session.get("organization_id", "")
+    all_announcements = get_announcements(organization_id=org_id)
     return render_template("announcements.html", announcements=all_announcements, user=user)
 
 
