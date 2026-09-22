@@ -893,5 +893,282 @@ class CampusHostelCompanionTestCase(unittest.TestCase):
         self.assertEqual(resp.status_code, 403)
 
 
+class CognitoSecretHashTestCase(unittest.TestCase):
+    """Unit tests for Cognito secret hash calculation and all authenticated Cognito API calls."""
+
+    def setUp(self):
+        import services.cognito as cognito_mod
+        cognito_mod._CACHED_CLIENT_SECRET = None
+        self.test_client_id = "test_client_id_123"
+        self.test_client_secret = "test_client_secret_xyz789"
+        self.test_username = "student_test@campus.edu"
+
+    # ---------------------------------------------------------------------
+    # Calculation & Config Tests
+    # ---------------------------------------------------------------------
+    def test_secret_hash_calculation_exact(self):
+        """Verify _calculate_secret_hash uses Base64(HMAC-SHA256(secret, username + client_id))."""
+        import hmac
+        import hashlib
+        import base64
+        from services.cognito import _calculate_secret_hash
+
+        username = "alice@campus.edu"
+        client_id = "mock_client_abc"
+        secret = "mock_secret_key_xyz"
+
+        expected_msg = (username + client_id).encode("utf-8")
+        expected_digest = hmac.new(secret.encode("utf-8"), expected_msg, hashlib.sha256).digest()
+        expected_hash = base64.b64encode(expected_digest).decode("utf-8")
+
+        result = _calculate_secret_hash(username, client_id, secret)
+        self.assertEqual(result, expected_hash)
+        self.assertTrue(len(result) > 0)
+
+    def test_secret_hash_empty_inputs(self):
+        """Empty or missing inputs should return empty string without raising."""
+        from services.cognito import _calculate_secret_hash
+        self.assertEqual(_calculate_secret_hash("", "client_id", "secret"), "")
+        self.assertEqual(_calculate_secret_hash("user", "", "secret"), "")
+        self.assertEqual(_calculate_secret_hash("user", "client_id", ""), "")
+
+    @patch.dict("os.environ", {"COGNITO_CLIENT_SECRET": "  env_secret_123  "})
+    def test_get_client_secret_from_env(self):
+        """_get_client_secret should read and strip COGNITO_CLIENT_SECRET from environment."""
+        from services.cognito import _get_client_secret
+        secret = _get_client_secret("any_cid")
+        self.assertEqual(secret, "env_secret_123")
+
+    @patch.dict("os.environ", {"COGNITO_CLIENT_SECRET": "", "COGNITO_USER_POOL_ID": "pool-123", "COGNITO_APP_CLIENT_ID": "cid-123"}, clear=False)
+    @patch("services.cognito._get_client")
+    def test_get_client_secret_via_describe_user_pool_client(self, mock_client_factory):
+        """When env var is unset, fallback to describe_user_pool_client and cache result."""
+        from services.cognito import _get_client_secret
+        mock_boto_client = MagicMock()
+        mock_boto_client.describe_user_pool_client.return_value = {
+            "UserPoolClient": {"ClientSecret": "boto_fetched_secret"}
+        }
+        mock_client_factory.return_value = mock_boto_client
+
+        secret = _get_client_secret("cid-123")
+        self.assertEqual(secret, "boto_fetched_secret")
+        mock_boto_client.describe_user_pool_client.assert_called_once_with(
+            UserPoolId="pool-123",
+            ClientId="cid-123",
+        )
+
+    # ---------------------------------------------------------------------
+    # SignUp (register_user) with SecretHash
+    # ---------------------------------------------------------------------
+    @patch.dict("os.environ", {"COGNITO_APP_CLIENT_ID": "test_cid", "COGNITO_CLIENT_SECRET": "test_sec"}, clear=False)
+    @patch("services.cognito._get_client")
+    def test_register_user_includes_secret_hash(self, mock_client_factory):
+        """register_user must include SecretHash in kwargs when client secret is configured."""
+        from services.cognito import register_user, _calculate_secret_hash
+        mock_boto_client = MagicMock()
+        mock_boto_client.sign_up.return_value = {
+            "UserConfirmed": False,
+            "UserSub": "sub-test-123",
+        }
+        mock_client_factory.return_value = mock_boto_client
+
+        res = register_user("student_bob", "bob@campus.edu", "Password123!")
+        self.assertTrue(res["success"])
+        self.assertFalse(res["user_confirmed"])
+        self.assertEqual(res["user_sub"], "sub-test-123")
+
+        mock_boto_client.sign_up.assert_called_once()
+        call_kwargs = mock_boto_client.sign_up.call_args[1]
+        self.assertIn("SecretHash", call_kwargs)
+        expected_hash = _calculate_secret_hash("bob@campus.edu", "test_cid", "test_sec")
+        self.assertEqual(call_kwargs["SecretHash"], expected_hash)
+        self.assertEqual(call_kwargs["Username"], "bob@campus.edu")
+
+    # ---------------------------------------------------------------------
+    # InitiateAuth (authenticate_user) with SECRET_HASH
+    # ---------------------------------------------------------------------
+    @patch.dict("os.environ", {"COGNITO_APP_CLIENT_ID": "test_cid", "COGNITO_CLIENT_SECRET": "test_sec", "COGNITO_USER_POOL_ID": ""}, clear=False)
+    @patch("services.cognito._get_client")
+    def test_authenticate_user_includes_secret_hash(self, mock_client_factory):
+        """authenticate_user must include SECRET_HASH in AuthParameters for USER_PASSWORD_AUTH."""
+        from services.cognito import authenticate_user, _calculate_secret_hash
+        mock_boto_client = MagicMock()
+        mock_boto_client.initiate_auth.return_value = {
+            "AuthenticationResult": {
+                "IdToken": "mock.id.token",
+                "AccessToken": "mock.access.token",
+                "RefreshToken": "mock.refresh.token",
+            }
+        }
+        mock_client_factory.return_value = mock_boto_client
+
+        res = authenticate_user("bob@campus.edu", "Password123!")
+        self.assertTrue(res["success"])
+        self.assertEqual(res["user"]["email"], "bob@campus.edu")
+
+        mock_boto_client.initiate_auth.assert_called_once()
+        call_kwargs = mock_boto_client.initiate_auth.call_args[1]
+        self.assertEqual(call_kwargs["AuthFlow"], "USER_PASSWORD_AUTH")
+        self.assertEqual(call_kwargs["ClientId"], "test_cid")
+        auth_params = call_kwargs["AuthParameters"]
+        self.assertIn("SECRET_HASH", auth_params)
+        expected_hash = _calculate_secret_hash("bob@campus.edu", "test_cid", "test_sec")
+        self.assertEqual(auth_params["SECRET_HASH"], expected_hash)
+        self.assertEqual(auth_params["USERNAME"], "bob@campus.edu")
+        self.assertEqual(auth_params["PASSWORD"], "Password123!")
+
+    # ---------------------------------------------------------------------
+    # ConfirmSignUp (confirm_user) with SecretHash
+    # ---------------------------------------------------------------------
+    @patch.dict("os.environ", {"COGNITO_APP_CLIENT_ID": "test_cid", "COGNITO_CLIENT_SECRET": "test_sec"}, clear=False)
+    @patch("services.cognito._get_client")
+    def test_confirm_user_includes_secret_hash(self, mock_client_factory):
+        """confirm_user must include SecretHash in confirm_sign_up call."""
+        from services.cognito import confirm_user, _calculate_secret_hash
+        mock_boto_client = MagicMock()
+        mock_boto_client.confirm_sign_up.return_value = {}
+        mock_client_factory.return_value = mock_boto_client
+
+        res = confirm_user("bob@campus.edu", "654321")
+        self.assertTrue(res["success"])
+
+        mock_boto_client.confirm_sign_up.assert_called_once()
+        call_kwargs = mock_boto_client.confirm_sign_up.call_args[1]
+        self.assertIn("SecretHash", call_kwargs)
+        expected_hash = _calculate_secret_hash("bob@campus.edu", "test_cid", "test_sec")
+        self.assertEqual(call_kwargs["SecretHash"], expected_hash)
+        self.assertEqual(call_kwargs["ConfirmationCode"], "654321")
+
+    # ---------------------------------------------------------------------
+    # ResendConfirmationCode (resend_verification_code) with SecretHash
+    # ---------------------------------------------------------------------
+    @patch.dict("os.environ", {"COGNITO_APP_CLIENT_ID": "test_cid", "COGNITO_CLIENT_SECRET": "test_sec"}, clear=False)
+    @patch("services.cognito._get_client")
+    def test_resend_verification_code_includes_secret_hash(self, mock_client_factory):
+        """resend_verification_code must include SecretHash in resend_confirmation_code call."""
+        from services.cognito import resend_verification_code, _calculate_secret_hash
+        mock_boto_client = MagicMock()
+        mock_boto_client.resend_confirmation_code.return_value = {
+            "CodeDeliveryDetails": {"Destination": "b***@c***.edu"}
+        }
+        mock_client_factory.return_value = mock_boto_client
+
+        res = resend_verification_code("bob@campus.edu")
+        self.assertTrue(res["success"])
+
+        mock_boto_client.resend_confirmation_code.assert_called_once()
+        call_kwargs = mock_boto_client.resend_confirmation_code.call_args[1]
+        self.assertIn("SecretHash", call_kwargs)
+        expected_hash = _calculate_secret_hash("bob@campus.edu", "test_cid", "test_sec")
+        self.assertEqual(call_kwargs["SecretHash"], expected_hash)
+
+    # ---------------------------------------------------------------------
+    # ForgotPassword (forgot_password) with SecretHash
+    # ---------------------------------------------------------------------
+    @patch.dict("os.environ", {"COGNITO_APP_CLIENT_ID": "test_cid", "COGNITO_CLIENT_SECRET": "test_sec"}, clear=False)
+    @patch("services.cognito._get_client")
+    def test_forgot_password_includes_secret_hash(self, mock_client_factory):
+        """forgot_password must include SecretHash in forgot_password call."""
+        from services.cognito import forgot_password, _calculate_secret_hash
+        mock_boto_client = MagicMock()
+        mock_boto_client.forgot_password.return_value = {
+            "CodeDeliveryDetails": {"Destination": "b***@c***.edu"}
+        }
+        mock_client_factory.return_value = mock_boto_client
+
+        res = forgot_password("bob@campus.edu")
+        self.assertTrue(res["success"])
+
+        mock_boto_client.forgot_password.assert_called_once()
+        call_kwargs = mock_boto_client.forgot_password.call_args[1]
+        self.assertIn("SecretHash", call_kwargs)
+        expected_hash = _calculate_secret_hash("bob@campus.edu", "test_cid", "test_sec")
+        self.assertEqual(call_kwargs["SecretHash"], expected_hash)
+
+    # ---------------------------------------------------------------------
+    # ConfirmForgotPassword (confirm_forgot_password) with SecretHash
+    # ---------------------------------------------------------------------
+    @patch.dict("os.environ", {"COGNITO_APP_CLIENT_ID": "test_cid", "COGNITO_CLIENT_SECRET": "test_sec"}, clear=False)
+    @patch("services.cognito._get_client")
+    def test_confirm_forgot_password_includes_secret_hash(self, mock_client_factory):
+        """confirm_forgot_password must include SecretHash in confirm_forgot_password call."""
+        from services.cognito import confirm_forgot_password, _calculate_secret_hash
+        mock_boto_client = MagicMock()
+        mock_boto_client.confirm_forgot_password.return_value = {}
+        mock_client_factory.return_value = mock_boto_client
+
+        res = confirm_forgot_password("bob@campus.edu", "123456", "NewPassword123!")
+        self.assertTrue(res["success"])
+
+        mock_boto_client.confirm_forgot_password.assert_called_once()
+        call_kwargs = mock_boto_client.confirm_forgot_password.call_args[1]
+        self.assertIn("SecretHash", call_kwargs)
+        expected_hash = _calculate_secret_hash("bob@campus.edu", "test_cid", "test_sec")
+        self.assertEqual(call_kwargs["SecretHash"], expected_hash)
+        self.assertEqual(call_kwargs["Password"], "NewPassword123!")
+
+    # ---------------------------------------------------------------------
+    # RespondToAuthChallenge with SECRET_HASH
+    # ---------------------------------------------------------------------
+    @patch.dict("os.environ", {"COGNITO_APP_CLIENT_ID": "test_cid", "COGNITO_CLIENT_SECRET": "test_sec"}, clear=False)
+    @patch("services.cognito._get_client")
+    def test_respond_to_auth_challenge_includes_secret_hash(self, mock_client_factory):
+        """respond_to_auth_challenge must inject SECRET_HASH into ChallengeResponses."""
+        from services.cognito import respond_to_auth_challenge, _calculate_secret_hash
+        mock_boto_client = MagicMock()
+        mock_boto_client.respond_to_auth_challenge.return_value = {
+            "AuthenticationResult": {
+                "IdToken": "mock.id.token",
+                "AccessToken": "mock.access.token",
+            }
+        }
+        mock_client_factory.return_value = mock_boto_client
+
+        res = respond_to_auth_challenge(
+            username="bob@campus.edu",
+            challenge_name="NEW_PASSWORD_REQUIRED",
+            challenge_responses={"NEW_PASSWORD": "NewPassword123!"},
+            session_str="session-xyz",
+        )
+        self.assertTrue(res["success"])
+
+        mock_boto_client.respond_to_auth_challenge.assert_called_once()
+        call_kwargs = mock_boto_client.respond_to_auth_challenge.call_args[1]
+        responses = call_kwargs["ChallengeResponses"]
+        self.assertIn("SECRET_HASH", responses)
+        expected_hash = _calculate_secret_hash("bob@campus.edu", "test_cid", "test_sec")
+        self.assertEqual(responses["SECRET_HASH"], expected_hash)
+        self.assertEqual(responses["USERNAME"], "bob@campus.edu")
+
+    # ---------------------------------------------------------------------
+    # REFRESH_TOKEN_AUTH with SECRET_HASH
+    # ---------------------------------------------------------------------
+    @patch.dict("os.environ", {"COGNITO_APP_CLIENT_ID": "test_cid", "COGNITO_CLIENT_SECRET": "test_sec"}, clear=False)
+    @patch("services.cognito._get_client")
+    def test_refresh_auth_session_includes_secret_hash(self, mock_client_factory):
+        """refresh_auth_session must include SECRET_HASH in AuthParameters."""
+        from services.cognito import refresh_auth_session, _calculate_secret_hash
+        mock_boto_client = MagicMock()
+        mock_boto_client.initiate_auth.return_value = {
+            "AuthenticationResult": {
+                "IdToken": "new.id.token",
+                "AccessToken": "new.access.token",
+            }
+        }
+        mock_client_factory.return_value = mock_boto_client
+
+        res = refresh_auth_session("bob@campus.edu", "mock-refresh-token")
+        self.assertTrue(res["success"])
+        self.assertEqual(res["id_token"], "new.id.token")
+
+        mock_boto_client.initiate_auth.assert_called_once()
+        call_kwargs = mock_boto_client.initiate_auth.call_args[1]
+        self.assertEqual(call_kwargs["AuthFlow"], "REFRESH_TOKEN_AUTH")
+        auth_params = call_kwargs["AuthParameters"]
+        self.assertIn("SECRET_HASH", auth_params)
+        expected_hash = _calculate_secret_hash("bob@campus.edu", "test_cid", "test_sec")
+        self.assertEqual(auth_params["SECRET_HASH"], expected_hash)
+
+
 if __name__ == "__main__":
     unittest.main()
