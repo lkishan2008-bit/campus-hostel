@@ -188,8 +188,21 @@ def login():
 
             result = authenticate_user(username, password)
             if result["success"]:
-                session["user"] = result["user"]
-                display = result["user"].get("username") or username
+                # Store only minimal user identity in session — avoid large tokens or payloads
+                raw_user = result.get("user", {})
+                user_data = {
+                    "username": raw_user.get("username") or username.strip().split("@")[0],
+                    "email": raw_user.get("email") or (username.strip() if "@" in username else ""),
+                }
+                if raw_user.get("sub"):
+                    user_data["sub"] = raw_user["sub"]
+                if raw_user.get("user_id"):
+                    user_data["user_id"] = raw_user["user_id"]
+                if raw_user.get("role"):
+                    user_data["role"] = raw_user["role"]
+
+                session["user"] = user_data
+                display = user_data.get("username") or username
 
                 # Synchronize membership & organization
                 sync_user_organization_session(display)

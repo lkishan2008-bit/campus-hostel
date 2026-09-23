@@ -123,8 +123,7 @@ class CampusHostelCompanionTestCase(unittest.TestCase):
             "user": {
                 "username": "student_alice",
                 "email": "alice@campus.edu",
-                "id_token": "mock-id-token",
-                "access_token": "mock-access-token",
+                "sub": "sub-alice-uuid-1234",
             },
         }
         mock_membership.return_value = {
@@ -145,6 +144,48 @@ class CampusHostelCompanionTestCase(unittest.TestCase):
         with self.client.session_transaction() as sess:
             self.assertIn("user", sess)
             self.assertEqual(sess["user"]["username"], "student_alice")
+            self.assertEqual(sess["user"]["email"], "alice@campus.edu")
+            self.assertEqual(sess["user"]["role"], "student")
+            self.assertEqual(sess.get("organization_id"), "org_hostel_a")
+            self.assertNotIn("id_token", sess["user"])
+            self.assertNotIn("access_token", sess["user"])
+            self.assertNotIn("refresh_token", sess["user"])
+
+    @patch("app.get_user_membership")
+    @patch("app.authenticate_user")
+    def test_login_does_not_put_tokens_in_session_or_oversized_header(self, mock_auth, mock_membership):
+        """Verify successful login keeps headers small and excludes raw Cognito JWTs from session cookie."""
+        mock_auth.return_value = {
+            "success": True,
+            "user": {
+                "username": "student_alice",
+                "email": "alice@campus.edu",
+                "sub": "sub-alice-uuid-1234",
+                "id_token": "a" * 2000,
+                "access_token": "b" * 2000,
+                "refresh_token": "c" * 2000,
+            },
+        }
+        mock_membership.return_value = {
+            "user_id": "student_alice",
+            "organization_id": "org_hostel_a",
+            "role": "student",
+        }
+
+        resp = self.client.post("/login", data={
+            "username": "student_alice",
+            "password": "Password123!",
+        }, follow_redirects=False)
+
+        self.assertEqual(resp.status_code, 302)
+        with self.client.session_transaction() as sess:
+            self.assertNotIn("id_token", sess["user"])
+            self.assertNotIn("access_token", sess["user"])
+            self.assertNotIn("refresh_token", sess["user"])
+
+        # Check Set-Cookie response header length is compact (well below 1024 bytes, preventing Nginx 502)
+        set_cookie = resp.headers.get("Set-Cookie", "")
+        self.assertLess(len(set_cookie), 1024)
 
     @patch("app.authenticate_user")
     def test_login_failure(self, mock_auth):
@@ -1005,6 +1046,9 @@ class CognitoSecretHashTestCase(unittest.TestCase):
         res = authenticate_user("bob@campus.edu", "Password123!")
         self.assertTrue(res["success"])
         self.assertEqual(res["user"]["email"], "bob@campus.edu")
+        self.assertNotIn("id_token", res["user"])
+        self.assertNotIn("access_token", res["user"])
+        self.assertNotIn("refresh_token", res["user"])
 
         mock_boto_client.initiate_auth.assert_called_once()
         call_kwargs = mock_boto_client.initiate_auth.call_args[1]
@@ -1016,6 +1060,36 @@ class CognitoSecretHashTestCase(unittest.TestCase):
         self.assertEqual(auth_params["SECRET_HASH"], expected_hash)
         self.assertEqual(auth_params["USERNAME"], "bob@campus.edu")
         self.assertEqual(auth_params["PASSWORD"], "Password123!")
+
+    def test_extract_user_info_excludes_tokens(self):
+        """_extract_user_info must extract identity claims without leaking raw tokens."""
+        import base64
+        import json
+        from services.cognito import _extract_user_info
+
+        # Create valid base64 payload
+        payload_dict = {"email": "bob@campus.edu", "name": "Bob Smith", "sub": "cognito-sub-12345"}
+        payload_bytes = json.dumps(payload_dict).encode("utf-8")
+        payload_b64 = base64.b64encode(payload_bytes).decode("utf-8")
+        fake_id_token = f"eyJhbGciOiJSUzI1NiJ9.{payload_b64}.signature"
+
+        cognito_resp = {
+            "AuthenticationResult": {
+                "IdToken": fake_id_token,
+                "AccessToken": "massive-access-token-" * 100,
+                "RefreshToken": "massive-refresh-token-" * 100,
+            }
+        }
+        res = _extract_user_info(cognito_resp, default_username="bob@campus.edu")
+        self.assertTrue(res["success"])
+        user = res["user"]
+        self.assertEqual(user["username"], "Bob Smith")
+        self.assertEqual(user["email"], "bob@campus.edu")
+        self.assertEqual(user["sub"], "cognito-sub-12345")
+        self.assertEqual(user["user_id"], "cognito-sub-12345")
+        self.assertNotIn("id_token", user)
+        self.assertNotIn("access_token", user)
+        self.assertNotIn("refresh_token", user)
 
     # ---------------------------------------------------------------------
     # ConfirmSignUp (confirm_user) with SecretHash

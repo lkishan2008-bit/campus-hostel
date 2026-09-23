@@ -87,14 +87,13 @@ def _calculate_secret_hash(username: str, client_id: str, client_secret: str) ->
 
 
 def _extract_user_info(response: dict, default_username: str = "") -> dict:
-    """Extract user claims and tokens from Cognito authentication response."""
+    """Extract user claims (identity/sub/email/username) from Cognito authentication response without storing raw tokens."""
     result = response.get("AuthenticationResult", {})
     id_token = result.get("IdToken", "")
-    access_token = result.get("AccessToken", "")
-    refresh_token = result.get("RefreshToken", "")
 
     email = ""
     preferred_name = ""
+    sub = ""
     if id_token and "." in id_token:
         try:
             payload = id_token.split(".")[1]
@@ -102,6 +101,7 @@ def _extract_user_info(response: dict, default_username: str = "") -> dict:
             claims = json.loads(base64.b64decode(payload).decode("utf-8"))
             email = claims.get("email", "")
             preferred_name = claims.get("name") or claims.get("preferred_username")
+            sub = claims.get("sub", "")
         except Exception:
             pass
 
@@ -112,11 +112,10 @@ def _extract_user_info(response: dict, default_username: str = "") -> dict:
     user_info = {
         "username": final_username,
         "email": email or (clean_default if "@" in clean_default else ""),
-        "id_token": id_token,
-        "access_token": access_token,
     }
-    if refresh_token:
-        user_info["refresh_token"] = refresh_token
+    if sub:
+        user_info["sub"] = sub
+        user_info["user_id"] = sub
 
     return {
         "success": True,
@@ -192,9 +191,8 @@ def authenticate_user(username: str, password: str) -> dict:
           "user": {
               "username": str,
               "email": str,
-              "id_token": str,
-              "access_token": str,
-              "refresh_token": str (optional)
+              "sub": str (optional),
+              "user_id": str (optional)
           }
         }
     Returns on failure:
